@@ -1,10 +1,7 @@
-// Import straight from three's source modules so the bundle only carries what we use.
-import { PerspectiveCamera } from "three/src/cameras/PerspectiveCamera.js";
-import { Object3D } from "three/src/core/Object3D.js";
-import { Vector3 } from "three/src/math/Vector3.js";
-import { Euler } from "three/src/math/Euler.js";
-import { Quaternion } from "three/src/math/Quaternion.js";
-import * as MathUtils from "three/src/math/MathUtils.js";
+import {
+  deg, clamp, quat, quatFromEulerYXZ, quatNlerp, rotate, deviceQuat,
+  scale, norm, matFacing, applyMat, viewMatrix, cameraCSS, objectCSS,
+} from "./math3d.js";
 
 const $ = (id) => document.getElementById(id);
 const landing = $("landing"), ar = $("ar"), cam = $("cam"), stage = $("stage");
@@ -55,35 +52,24 @@ function hint(t, ms = 4500) {
 // One DOM element gets one flattened matrix3d (camera x object) under a parent
 // with CSS perspective. Unlike nested preserve-3d layers, Chrome and Safari
 // hit-test this correctly, so taps land on the right link inside the page.
-let camera, panel, panelEl, frameHost, stateEl;
+let panelEl, frameHost, stateEl;
+let camQ = quat();          // where the phone is looking
+let panelPos = [0, 0, -1000]; // panel centre in the room (camera at origin)
 let dist = 1000, running = false, placed = false, ready = false;
-const vPos = new Vector3();
-const eps = (v) => (Math.abs(v) < 1e-10 ? 0 : v);
-function cameraCSS(m) {
-  const e = m.elements;
-  return `matrix3d(${eps(e[0])},${eps(-e[1])},${eps(e[2])},${eps(e[3])},${eps(e[4])},${eps(-e[5])},${eps(e[6])},${eps(e[7])},${eps(e[8])},${eps(-e[9])},${eps(e[10])},${eps(e[11])},${eps(e[12])},${eps(-e[13])},${eps(e[14])},${eps(e[15])})`;
-}
-function objectCSS(m) {
-  const e = m.elements;
-  return `matrix3d(${eps(e[0])},${eps(e[1])},${eps(e[2])},${eps(e[3])},${eps(-e[4])},${eps(-e[5])},${eps(-e[6])},${eps(-e[7])},${eps(e[8])},${eps(e[9])},${eps(e[10])},${eps(e[11])},${eps(e[12])},${eps(e[13])},${eps(e[14])},${eps(e[15])})`;
-}
+
 function render() {
-  camera.updateMatrixWorld();
-  panel.updateMatrixWorld();
-  const fovPx = camera.projectionMatrix.elements[5] * innerHeight / 2;
+  const fovPx = innerHeight / 2 / Math.tan(deg(FOV / 2));
   stage.style.perspective = fovPx + "px";
+  const view = viewMatrix(camQ);
   // Hide the panel when it is behind the viewer (CSS perspective can't clip it).
-  vPos.setFromMatrixPosition(panel.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
-  const visible = vPos.z < -50;
+  const visible = applyMat(view, panelPos)[2] < -50;
   panelEl.style.visibility = visible ? "visible" : "hidden";
-  if (visible) panelEl.style.transform = `translateZ(${fovPx}px) ${cameraCSS(camera.matrixWorldInverse)} ${objectCSS(panel.matrixWorld)}`;
+  if (visible) panelEl.style.transform = `translateZ(${fovPx}px) ${cameraCSS(view)} ${objectCSS(matFacing(panelPos))}`;
 }
 
 function initScene() {
   if (ready) return;
   ready = true;
-  camera = new PerspectiveCamera(FOV, innerWidth / innerHeight, 1, 10000);
-
   panelEl = document.createElement("div");
   panelEl.className = "panel";
   frameHost = document.createElement("div");
@@ -92,8 +78,6 @@ function initScene() {
   stateEl.className = "panel-state";
   panelEl.append(frameHost, stateEl);
   stage.appendChild(panelEl);
-  panel = new Object3D();
-
   addEventListener("resize", onResize);
   addEventListener("orientationchange", () => setTimeout(onResize, 300));
 }
@@ -103,8 +87,8 @@ function panelSize() {
 }
 
 function fitDistance({ w, h }) {
-  const t = 2 * Math.tan(MathUtils.degToRad(FOV / 2));
-  return Math.max(w / (0.9 * t * camera.aspect), h / (0.74 * t));
+  const t = 2 * Math.tan(deg(FOV / 2));
+  return Math.max(w / (0.9 * t * (innerWidth / innerHeight)), h / (0.74 * t));
 }
 
 // Place the panel straight ahead of where the device is pointing, upright.
@@ -113,52 +97,38 @@ function placePanel() {
   Object.assign(panelEl.style, { width: size.w + "px", height: size.h + "px", marginLeft: -size.w / 2 + "px", marginTop: -size.h / 2 + "px" });
   dist = fitDistance(size);
   // Use where the device is heading (gyro target), not the mid-smoothing camera pose.
-  const q = gyro.active ? gyro.target : camera.quaternion;
-  const fwd = new Vector3(0, 0, -1).applyQuaternion(q).normalize();
-  panel.position.copy(fwd.multiplyScalar(dist));
-  panel.lookAt(0, 0, 0);
+  const q = gyro.active ? gyro.target : camQ;
+  panelPos = scale(norm(rotate([0, 0, -1], q)), dist);
   placed = true;
 }
 
 function onResize() {
   if (!ready) return;
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
   const s = panelSize();
   if (parseInt(panelEl.style.width) !== s.w) placePanel();
 }
 
 function zoom(f) {
-  dist = MathUtils.clamp(dist * f, 350, 5000);
-  panel.position.setLength(dist);
+  dist = clamp(dist * f, 350, 5000);
+  panelPos = scale(norm(panelPos), dist);
 }
 
 function loop() {
   if (!running) return;
-  if (gyro.active) camera.quaternion.slerp(gyro.target, 0.5);
-  else camera.quaternion.setFromEuler(new Euler(look.pitch, look.yaw, 0, "YXZ"));
+  camQ = gyro.active ? quatNlerp(camQ, gyro.target, 0.5) : quatFromEulerYXZ(look.pitch, look.yaw, 0);
   render();
   requestAnimationFrame(loop);
 }
 
 // ---------- device orientation (3DoF) ----------
-const gyro = { active: false, target: new Quaternion() };
-const zee = new Vector3(0, 0, 1), q0 = new Quaternion(), q1 = new Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
-const eul = new Euler();
-export function deviceQuaternion(out, alpha, beta, gamma, orient) {
-  eul.set(beta, alpha, -gamma, "YXZ");
-  out.setFromEuler(eul);
-  out.multiply(q1);
-  out.multiply(q0.setFromAxisAngle(zee, -orient));
-  return out;
-}
+const gyro = { active: false, target: quat() };
 function onOrientation(e) {
   if (e.alpha == null || e.beta == null) return;
-  const orient = MathUtils.degToRad((screen.orientation && screen.orientation.angle) || window.orientation || 0);
-  deviceQuaternion(gyro.target, MathUtils.degToRad(e.alpha), MathUtils.degToRad(e.beta), MathUtils.degToRad(e.gamma), orient);
+  const angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+  gyro.target = deviceQuat(e.alpha, e.beta, e.gamma || 0, angle);
   if (!gyro.active) {
     gyro.active = true;
-    camera.quaternion.copy(gyro.target);
+    camQ = gyro.target;
     placePanel();
     hint("Move your phone. The page stays where it is.");
   }
@@ -181,7 +151,7 @@ stage.addEventListener("pointerdown", (e) => {
 stage.addEventListener("pointermove", (e) => {
   if (!look.drag) return;
   look.yaw = look.drag.yaw + (e.clientX - look.drag.x) * 0.004;
-  look.pitch = MathUtils.clamp(look.drag.pitch + (e.clientY - look.drag.y) * 0.004, -1.3, 1.3);
+  look.pitch = clamp(look.drag.pitch + (e.clientY - look.drag.y) * 0.004, -1.3, 1.3);
 });
 stage.addEventListener("pointerup", () => (look.drag = null));
 stage.addEventListener("pointercancel", () => (look.drag = null));
@@ -343,7 +313,7 @@ async function enterAR(raw) {
   onResize();
   gyro.active = false;
   look.yaw = 0; look.pitch = 0;
-  camera.quaternion.set(0, 0, 0, 1);
+  camQ = quat();
   running = true;
   placePanel();
   addEventListener("deviceorientation", onOrientation);
@@ -386,7 +356,7 @@ $("exit-btn").addEventListener("click", () => { exitAR(); history.replaceState(n
 $("back-btn").addEventListener("click", () => history.back());
 $("zoom-in").addEventListener("click", () => zoom(0.85));
 $("zoom-out").addEventListener("click", () => zoom(1.18));
-$("recenter-btn").addEventListener("click", () => { if (!gyro.active) { look.yaw = 0; look.pitch = 0; camera.quaternion.set(0, 0, 0, 1); } placePanel(); });
+$("recenter-btn").addEventListener("click", () => { if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
 
 // Test hook (no effect for users).
 window.__airpane = { normalizeInput, get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent }; } };

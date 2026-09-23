@@ -3,16 +3,13 @@
   "version": "1.0.0",
   "description": "Airpane - open any website in the air through the phone camera",
   "scripts": {
-    "build": "esbuild src/app.js --bundle --minify --format=esm --target=es2020,safari15 --external:https://* --outfile=public/app.js",
     "dev": "node scripts/dev-server.js",
-    "test": "node tests/api.test.js && node tests/e2e.test.js"
+    "test": "node tests/math.test.mjs && node tests/api.test.js && node tests/e2e.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "dependencies": {},
   "devDependencies": {
-    "esbuild": "^0.28.2",
     "three": "^0.186.0"
   },
   "private": true,

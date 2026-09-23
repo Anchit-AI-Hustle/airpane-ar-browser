@@ -8,7 +8,6 @@ Open any website so it floats in front of you through the phone camera. No app, 
 ## Run locally
 ```
 npm install
-npm run build
 npm run dev          # http://localhost:3000
 npm test             # API tests + Playwright E2E (fake camera)
 ```

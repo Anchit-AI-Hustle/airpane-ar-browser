@@ -16,7 +16,7 @@ async function t(name, fn) {
   let server;
   if (!process.env.BASE_URL) {
     server = spawn("node", ["scripts/dev-server.js"], { env: { ...process.env, PORT: "3100" }, stdio: "ignore" });
-    await new Promise((r) => setTimeout(r, 800));
+    for (let i = 0; i < 40; i++) { try { await fetch(BASE); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
   }
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "<-loopback>,localhost,127.0.0.1" } : undefined;
   const browser = await chromium.launch({
