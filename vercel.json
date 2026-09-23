@@ -1,11 +1,22 @@
 {
-  "buildCommand": "",
   "outputDirectory": "public",
   "headers": [
-    { "source": "/(.*)", "headers": [
-      { "key": "Permissions-Policy", "value": "camera=(self), gyroscope=(self), accelerometer=(self)" },
-      { "key": "X-Content-Type-Options", "value": "nosniff" },
-      { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
-    ]}
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), gyroscope=(self), accelerometer=(self)"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
   ]
 }
