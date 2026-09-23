@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Airpane - the web, floating in your room</title>
+  <meta name="description" content="Open any website in the air through your phone camera. Tap, scroll and type like normal. No app, no headset." />
+  <meta name="theme-color" content="#07090f" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='7' width='22' height='16' rx='3' fill='none' stroke='%237cf5d3' stroke-width='2.5' transform='skewY(-8) translate(0 4)'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- LANDING -->
+  <main id="landing">
+    <header class="top">
+      <a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Airpane<span class="beta">beta</span></a>
+    </header>
+
+    <section class="hero">
+      <div class="copy">
+        <h1>Open any website<br /><span class="grad">in the air.</span></h1>
+        <p class="lede">Point your phone at the room and the web floats in front of you. Tap, scroll and type like normal. No app, no headset.</p>
+
+        <form id="launch-form" class="launch" autocomplete="off">
+          <label class="sr" for="launch-input">Search or type a URL</label>
+          <input id="launch-input" name="q" type="text" inputmode="url" placeholder="Search or type a URL" enterkeyhint="go" />
+          <button type="submit" class="btn-primary" id="launch-btn">Launch<span aria-hidden="true">→</span></button>
+        </form>
+
+        <div class="chips" aria-label="Try one">
+          <span class="chips-label">Try</span>
+          <button class="chip" data-url="https://en.m.wikipedia.org/wiki/Augmented_reality">Wikipedia</button>
+          <button class="chip" data-url="https://www.youtube.com/embed/aqz-KE-bpKQ">YouTube video</button>
+          <button class="chip" data-url="https://www.openstreetmap.org/export/embed.html?bbox=77.18%2C28.58%2C77.26%2C28.64&amp;layer=mapnik">Live map</button>
+          <button class="chip" data-url="https://threejs.org">three.js</button>
+        </div>
+
+        <ul class="notes">
+          <li>Camera stays on your device. Nothing is recorded.</li>
+          <li>Best on Android Chrome and iPhone Safari.</li>
+        </ul>
+      </div>
+
+      <div class="visual" aria-hidden="true">
+        <div class="room">
+          <div class="floor"></div>
+          <div class="float-panel">
+            <div class="fp-bar"><i></i><i></i><i></i><span>airpane.app</span></div>
+            <div class="fp-body">
+              <b></b><b class="w70"></b><b class="w40"></b>
+              <div class="fp-cards"><s></s><s></s><s></s></div>
+            </div>
+          </div>
+          <div class="phone"><div class="phone-notch"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="how">
+      <div class="step"><span>1</span><h3>Open a link</h3><p>Type a site or search. Nothing to install.</p></div>
+      <div class="step"><span>2</span><h3>Allow the camera</h3><p>Your room becomes the background.</p></div>
+      <div class="step"><span>3</span><h3>Use it in the air</h3><p>The page stays put as you move. Tap and scroll it directly.</p></div>
+    </section>
+
+    <footer class="foot">Airpane is an early beta. Some sites block being shown inside other apps; those open in Cloud mode when it's available.</footer>
+  </main>
+
+  <!-- AR VIEW -->
+  <div id="ar" hidden>
+    <video id="cam" playsinline muted autoplay></video>
+    <div id="stage"></div>
+
+    <div class="hud-top">
+      <span id="mode-chip" class="mode">Direct</span>
+      <span id="status" class="status" role="status" aria-live="polite"></span>
+      <button id="exit-btn" class="icon-btn" aria-label="Exit">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div id="hint" class="hint"></div>
+
+    <div class="dock">
+      <button id="back-btn" class="icon-btn" aria-label="Back">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <form id="url-form" class="url" autocomplete="off">
+        <label class="sr" for="url-input">Address</label>
+        <input id="url-input" type="text" inputmode="url" placeholder="Search or type a URL" enterkeyhint="go" />
+      </form>
+      <button id="zoom-out" class="icon-btn" aria-label="Move screen away">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 12h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button id="zoom-in" class="icon-btn" aria-label="Bring screen closer">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 12h12M12 6v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button id="recenter-btn" class="icon-btn" aria-label="Bring screen in front of me">
+        <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="alert" hidden></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
