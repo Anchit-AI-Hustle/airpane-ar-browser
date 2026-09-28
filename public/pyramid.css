@@ -12,6 +12,7 @@
 .pyr-mark::after { width: 1.5px; height: 60%; }
 .pyr-only { display: none; }
 #ar.pyr .pyr-only { display: inline-flex; }
+#pair-btn[hidden] { display: none !important; }
 #ar.pyr #recenter-btn { display: none; }
 .view-btn.plain::before { content: ""; }
 #ar .hud-top, #ar .dock { transition: opacity 0.4s; }

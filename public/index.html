@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/holo.css" />
   <link rel="stylesheet" href="/pyramid.css" />
+  <link rel="stylesheet" href="/glass.css" />
 </head>
 <body>
   <!-- LANDING -->
@@ -24,10 +25,11 @@
     <section class="hero">
       <div class="copy">
         <h1>Open any website<br /><span class="grad">in the air.</span></h1>
-        <p class="lede">Lay your phone flat, put a small clear pyramid on it, and the website floats in mid-air inside the pyramid. No glasses, no camera, no app. A plastic CD case is enough to make one.</p>
+        <p class="lede">Lay a phone or iPad flat, lean a clear acrylic sheet over it, and the website stands in the air behind the sheet. Control it from your laptop by pointing and pinching at the webcam. No glasses, no app.</p>
 
         <div class="modes" role="radiogroup" aria-label="How to show the page">
-          <label class="mode-opt"><input type="radio" name="mode" value="pyramid" checked /><span><b>Floating pyramid</b><small>Page in mid-air. Needs a clear pyramid.</small></span></label>
+          <label class="mode-opt"><input type="radio" name="mode" value="glass" checked /><span><b>Floating glass</b><small>Big page in the air. Needs a clear sheet. Hand control.</small></span></label>
+          <label class="mode-opt"><input type="radio" name="mode" value="pyramid" /><span><b>Floating pyramid</b><small>Small page in mid-air. Needs a clear pyramid.</small></span></label>
           <label class="mode-opt"><input type="radio" name="mode" value="screen" /><span><b>3D on screen</b><small>No pyramid. Uses the camera for depth.</small></span></label>
         </div>
 
@@ -46,7 +48,7 @@
         </div>
 
         <ul class="notes">
-          <li>Pyramid mode never turns the camera on. <a href="/pyramid-template.html" target="_blank" rel="noopener">Print the pyramid template</a></li>
+          <li>Controlling from a laptop? Open <a href="/control">airpane.anchit-tandon.com/control</a> there. <a href="/pyramid-template.html" target="_blank" rel="noopener">Pyramid template</a></li>
           <li>Works in Chrome, Safari and Edge on phones and laptops.</li>
         </ul>
       </div>
@@ -67,9 +69,9 @@
     </section>
 
     <section class="how">
-      <div class="step"><span>1</span><h3>Make the pyramid</h3><p>Cut 4 trapezoids from clear plastic (6 cm base, 1 cm top, 3.5 cm tall) and tape them together.</p></div>
-      <div class="step"><span>2</span><h3>Open a site</h3><p>Launch, lay the phone flat and stand the pyramid upside down on the + mark.</p></div>
-      <div class="step"><span>3</span><h3>See it in the air</h3><p>Dim the lights and look at the pyramid from the side, at the height of the phone.</p></div>
+      <div class="step"><span>1</span><h3>Set up the glass</h3><p>Lay the phone or iPad flat and lean a clear acrylic sheet over it at 45°, resting on the far edge and rising towards you.</p></div>
+      <div class="step"><span>2</span><h3>Pair your laptop</h3><p>Open airpane.anchit-tandon.com/control on the laptop and type the 4-letter code shown on the phone.</p></div>
+      <div class="step"><span>3</span><h3>Use it in the air</h3><p>Point at the webcam to move the cursor, pinch to click, pinch and move to scroll.</p></div>
     </section>
 
     <footer class="foot">Airpane is an early beta. Some sites block being shown inside other apps; those open in Cloud mode when it's available.</footer>
@@ -80,12 +82,19 @@
     <video id="cam" playsinline muted autoplay></video>
     <div id="stage"></div>
     <div id="pyr" class="pyr" hidden></div>
+    <div id="glass" class="glass" hidden></div>
+    <div id="glass-pair" class="glass-pair" hidden>
+      <p>Control from your laptop: open <b>airpane.anchit-tandon.com/control</b> and type</p>
+      <div class="code" id="glass-code">....</div>
+      <p id="glass-pair-note">Or tap a link on this screen directly.</p>
+    </div>
 
     <div class="hud-top">
       <span id="mode-chip" class="mode">Direct</span>
       <span id="status" class="status" role="status" aria-live="polite"></span>
       <span id="track" class="track" hidden><i></i>Head tracking</span>
-      <button id="help-btn" class="view-btn pyr-only plain" type="button">How to build</button>
+      <button id="pair-btn" class="view-btn fade-only plain" type="button" hidden>Pair laptop</button>
+      <button id="help-btn" class="view-btn fade-only plain" type="button">How to build</button>
       <button id="dark-btn" class="view-btn pyr-only plain" type="button" aria-pressed="true">Glow: on</button>
       <button id="view-btn" class="view-btn" type="button">Hologram</button>
       <button id="exit-btn" class="icon-btn" aria-label="Exit">
@@ -118,7 +127,7 @@
   <div id="pyr-help" class="pyr-help" role="dialog" aria-modal="true" aria-labelledby="pyr-help-title" hidden>
     <div class="card">
       <h2 id="pyr-help-title">Set up the floating page</h2>
-      <ol>
+      <ol id="help-steps">
         <li>Cut 4 trapezoids from clear plastic: <b>6 cm</b> wide at the bottom, <b>1 cm</b> at the top, <b>3.5 cm</b> tall. <a href="/pyramid-template.html" target="_blank" rel="noopener">Printable template</a></li>
         <li>Tape the long edges together into a pyramid.</li>
         <li>Lay the phone flat, screen up, brightness high.</li>

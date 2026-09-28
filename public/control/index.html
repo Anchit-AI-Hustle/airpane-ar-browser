@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Airpane controller</title>
+  <meta name="description" content="Control a floating Airpane page from your laptop with hand gestures." />
+  <meta name="theme-color" content="#07090f" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/control/control.css" />
+</head>
+<body>
+  <main class="ctl">
+    <header class="top"><a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Airpane<span class="beta">controller</span></a></header>
+
+    <section id="pair" class="card">
+      <h1>Control the floating page</h1>
+      <p class="muted">Type the 4-letter code shown on the phone or iPad under the glass.</p>
+      <form id="pair-form" class="pair-form" autocomplete="off">
+        <label class="sr" for="code">Pairing code</label>
+        <input id="code" maxlength="4" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="ABCD" />
+        <button class="btn-primary" id="connect" type="submit">Connect</button>
+      </form>
+      <p id="pair-err" class="err" role="alert" hidden></p>
+    </section>
+
+    <section id="panel" class="ctl-panel" hidden>
+      <div class="now card">
+        <div class="now-row"><span class="dot"></span><span id="now-title">Connected</span></div>
+        <div id="now-hover" class="muted small">Point at a link on the floating page</div>
+        <form id="go-form" class="go" autocomplete="off">
+          <label class="sr" for="go-url">Open a site</label>
+          <input id="go-url" type="text" inputmode="url" placeholder="Open a site or search" />
+          <button class="btn-primary" type="submit">Open</button>
+        </form>
+        <div class="row">
+          <button id="back" class="chip" type="button">Back</button>
+          <button id="smaller" class="chip" type="button">Text -</button>
+          <button id="bigger" class="chip" type="button">Text +</button>
+          <button id="hands" class="chip on" type="button" aria-pressed="true">Hand control: on</button>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card cam">
+          <div class="cam-box">
+            <video id="video" playsinline muted autoplay></video>
+            <canvas id="overlay"></canvas>
+            <div id="cam-msg" class="cam-msg">Starting camera</div>
+          </div>
+          <ul class="howto">
+            <li><b>Point</b> with your index finger to move the cursor</li>
+            <li><b>Pinch</b> thumb and index finger to click</li>
+            <li><b>Pinch and move</b> up or down to scroll</li>
+          </ul>
+          <div id="gesture" class="gesture muted small">No hand in view</div>
+        </div>
+        <div class="card pad-card">
+          <div id="pad" class="pad" tabindex="0" aria-label="Touchpad for the floating page. Move to point, click to open links, scroll to scroll.">
+            <div id="pad-cursor" class="pad-cursor" hidden></div>
+            <span>Trackpad: move, click and scroll here</span>
+          </div>
+          <p class="muted small">Keys: arrows scroll, Backspace goes back.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/control/control.js"></script>
+</body>
+</html>

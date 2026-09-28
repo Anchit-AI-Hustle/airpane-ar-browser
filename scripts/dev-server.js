@@ -13,6 +13,7 @@ http.createServer(async (req, res) => {
     try { return await require(f)(req, res); } catch (e) { res.statusCode = 500; return res.end(String(e)); }
   }
   let file = path.join(root, "public", p === "/" ? "index.html" : p);
+  if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html"); // like Vercel: /control -> /control/index.html
   if (!file.startsWith(path.join(root, "public")) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.statusCode = 404; return res.end("Not found"); }
   res.setHeader("Content-Type", types[path.extname(file)] || "application/octet-stream");
   fs.createReadStream(file).pipe(res);

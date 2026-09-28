@@ -94,6 +94,21 @@ async function t(name, fn) { try { await fn(); pass++; console.log("ok  ", name)
     try { const r = await call(session, { method: "POST", body: { url: "https://www.google.com" } }); assert.equal(r.status, 502); assert.equal(r.body.error, "bad key"); }
     finally { global.fetch = real; }
   });
+  const reader = require("../api/reader");
+  await t("reader: missing url -> 400", async () => assert.equal((await call(reader, { url: "/api/reader" })).status, 400));
+  await t("reader: private host refused (SSRF)", async () => assert.equal((await call(reader, { url: "/api/reader?url=" + encodeURIComponent("http://127.0.0.1/") })).status, 422));
+  await t("reader: an article becomes headings, text and working links", async () => {
+    const r = await call(reader, { url: "/api/reader?url=" + encodeURIComponent("https://en.m.wikipedia.org/wiki/Hologram") });
+    assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 200));
+    assert.ok(r.body.blocks.length > 30);
+    const links = r.body.blocks.flatMap((b) => b.runs).filter((x) => x.href);
+    assert.ok(links.length > 50 && links.every((l) => /^https?:\/\//.test(l.href)));
+  });
+  await t("reader: a link-list page keeps its links", async () => {
+    const r = await call(reader, { url: "/api/reader?url=" + encodeURIComponent("https://news.ycombinator.com") });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.blocks.flatMap((b) => b.runs).filter((x) => x.href).length > 30);
+  });
   delete process.env.HYPERBEAM_API_KEY;
   console.log(`\n${pass} API tests passed${process.exitCode ? " (with failures)" : ""}`);
 })();

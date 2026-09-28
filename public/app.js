@@ -4,6 +4,8 @@ import {
 } from "./math3d.js";
 import { createHolo } from "./holo.js";
 import { createPyramid } from "./pyramid.js";
+import { createGlass } from "./glass.js";
+import { host } from "./link.js";
 
 const $ = (id) => document.getElementById(id);
 const landing = $("landing"), ar = $("ar"), cam = $("cam"), stage = $("stage");
@@ -61,9 +63,10 @@ let dist = 1000, running = false, placed = false, ready = false;
 // "holo": laptop/desktop, the camera tracks your head and the page floats in front
 // of the screen. "room": phone, the back camera shows the room and the page is
 // pinned in it.
-let view = "room", holo = null, pyr = null;
-const VIEWS = ["pyramid", "holo", "room"];
-const LABEL = { pyramid: "Pyramid", holo: "Hologram", room: "Camera room" };
+let view = "room", holo = null, pyr = null, glass = null, link = null, linkStarting = false;
+const VIEWS = ["glass", "pyramid", "holo", "room"];
+const LABEL = { glass: "Floating glass", pyramid: "Pyramid", holo: "Hologram", room: "Camera room" };
+const FLOAT = (v) => v === "glass" || v === "pyramid"; // views seen as a reflection: no camera, fading controls
 const viewBtn = $("view-btn"), trackEl = $("track");
 
 export function pickView() {
@@ -95,6 +98,8 @@ function initScene() {
   stage.appendChild(panelEl);
   holo = createHolo({ stage, panel: panelEl, video: cam, onStatus: onHoloStatus });
   pyr = createPyramid($("pyr"));
+  glass = createGlass($("glass"), { onState: (st) => { if (view === "glass") setStatus(st.title || ""); if (link) link.broadcast({ t: "state", ...st }); } });
+  wireGlassTouch();
   addEventListener("resize", onResize);
   addEventListener("orientationchange", () => setTimeout(onResize, 300));
 }
@@ -126,6 +131,7 @@ function onResize() {
 }
 
 function zoom(f) {
+  if (view === "glass") return glassSize(f < 1 ? 1.1 : 0.9);
   if (view === "pyramid") return pyr.setSize(pyr.state.size * (f < 1 ? 1.05 : 0.95));
   if (view === "holo") return holo.zoom(f);
   dist = clamp(dist * f, 350, 5000);
@@ -134,7 +140,7 @@ function zoom(f) {
 
 function loop() {
   if (!running) return;
-  if (view === "pyramid") { requestAnimationFrame(loop); return; }
+  if (FLOAT(view)) { requestAnimationFrame(loop); return; }
   if (view === "holo") { holo.frame(performance.now(), panelSize()); requestAnimationFrame(loop); return; }
   camQ = gyro.active ? quatNlerp(camQ, gyro.target, 0.5) : quatFromEulerYXZ(look.pitch, look.yaw, 0);
   render();
@@ -298,6 +304,7 @@ async function loadURL(raw, { push = true } = {}) {
   urlInput.value = url;
   urlInput.blur();
   if (push) history.pushState({ ar: 1, url }, "");
+  if (view === "glass") { setMode("direct"); glass.load(url); return; }
   loadingState("Opening");
   setStatus("Checking " + url.replace(/^https?:\/\//, "").slice(0, 60));
 
@@ -336,10 +343,10 @@ async function enterAR(raw) {
   if (running) return loadURL(raw);
   launchBtn.disabled = true;
   const mode = (document.querySelector('input[name="mode"]:checked') || {}).value;
-  view = mode === "pyramid" ? "pyramid" : pickView();
-  if (view === "pyramid") goFullscreen(); // must happen inside the tap
+  view = mode === "pyramid" || mode === "glass" ? mode : pickView();
+  if (FLOAT(view)) goFullscreen(); // must happen inside the tap
   const orientP = view === "room" ? requestOrientation() : Promise.resolve(false); // first call inside the tap on iPhone
-  const camP = view === "pyramid" ? Promise.resolve(false) : startCamera(view === "holo" ? "user" : "environment");
+  const camP = FLOAT(view) ? Promise.resolve(false) : startCamera(view === "holo" ? "user" : "environment");
   const [, camOk] = await Promise.all([orientP, camP]);
   launchBtn.disabled = false;
 
@@ -361,25 +368,28 @@ async function enterAR(raw) {
 function applyView(camOk) {
   ar.classList.toggle("holo", view === "holo");
   ar.classList.toggle("pyr", view === "pyramid");
+  ar.classList.toggle("glassv", view === "glass");
   ar.classList.remove("ui-hidden");
   viewBtn.textContent = LABEL[view];
   viewBtn.setAttribute("aria-label", "3D view: " + viewBtn.textContent + ". Switch view");
   trackEl.hidden = true;
   stage.style.perspectiveOrigin = "";
   placePanel();
-  if (view === "pyramid") {
+  if (FLOAT(view)) {
     holo.stop();
     ar.classList.remove("no-cam");
-    pyr.start();
-    if (current) pyr.show(current);
     keepAwake(true);
+    if (view === "pyramid") { glass.stop(); pairEl.hidden = true; pyr.start(); if (current) pyr.show(current); }
+    else { pyr.stop(); glass.start(); startLink(); }
     let seen = false;
-    try { seen = localStorage.getItem("airpane-pyr-help") === "1"; } catch {}
-    if (!seen) showHelp(); else hint("Stand the pyramid on the + mark. Tap the screen for controls.", 5000);
+    try { seen = localStorage.getItem("airpane-help-" + view) === "1"; } catch {}
+    if (!seen) showHelp(); else hint(HELP[view].hint, 5000);
     pokeUI();
     return;
   }
   pyr.stop();
+  glass.stop();
+  pairEl.hidden = true;
   keepAwake(false);
   if (view === "holo") {
     holo.start();
@@ -402,7 +412,7 @@ async function switchView() {
   view = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
   stopCamera();
   gyro.active = false; look.yaw = 0; look.pitch = 0; camQ = quat();
-  if (view === "pyramid") { applyView(false); if (current) loadURL(current, { push: false }); return; }
+  if (FLOAT(view)) { applyView(false); if (current) loadURL(current, { push: false }); return; }
   if (view === "room") await requestOrientation();
   const ok = await startCamera(view === "holo" ? "user" : "environment");
   applyView(ok);
@@ -410,22 +420,97 @@ async function switchView() {
 }
 
 // ---------- pyramid helpers ----------
-const helpEl = $("pyr-help"), darkBtn = $("dark-btn");
-function showHelp() { helpEl.hidden = false; $("pyr-help-ok").focus(); }
+const helpEl = $("pyr-help"), darkBtn = $("dark-btn"), pairEl = $("glass-pair"), pairBtn = $("pair-btn");
+const HELP = {
+  pyramid: {
+    hint: "Stand the pyramid on the + mark. Tap the screen for controls.",
+    steps: `<li>Cut 4 trapezoids from clear plastic: <b>6 cm</b> wide at the bottom, <b>1 cm</b> at the top, <b>3.5 cm</b> tall. <a href="/pyramid-template.html" target="_blank" rel="noopener">Printable template</a></li>
+      <li>Tape the long edges together into a pyramid.</li>
+      <li>Lay the phone flat, screen up, brightness high.</li>
+      <li>Stand the pyramid upside down, small end on the <b>+</b> mark.</li>
+      <li>Dim the room and look from the side, level with the phone. The page floats inside.</li>`,
+  },
+  glass: {
+    hint: "Lean the clear sheet over the screen. Pair your laptop to control it by hand.",
+    steps: `<li>Lay this phone or iPad flat, screen up, brightness high, with its long side facing you.</li>
+      <li>Lean a clear acrylic sheet (or a glass photo frame without its back) over it at about <b>45°</b>: bottom edge on the far side of the screen, top edge rising towards you.</li>
+      <li>Dim the room and sit so your eyes are level with the sheet. The page stands in the air behind it.</li>
+      <li>On your laptop open <b>airpane.anchit-tandon.com/control</b> and type the code shown here. Point at the webcam to move the cursor, pinch to click, pinch and move up or down to scroll.</li>`,
+  },
+};
+function showHelp() {
+  $("help-steps").innerHTML = (HELP[view] || HELP.pyramid).steps;
+  helpEl.hidden = false; $("pyr-help-ok").focus();
+}
 function hideHelp() {
   helpEl.hidden = true;
-  try { localStorage.setItem("airpane-pyr-help", "1"); } catch {}
-  hint("Stand the pyramid on the + mark. Tap the screen for controls.", 5000);
+  try { localStorage.setItem("airpane-help-" + view, "1"); } catch {}
+  hint((HELP[view] || HELP.pyramid).hint, 5000);
   pokeUI();
+}
+
+// ---------- glass: pairing with the laptop controller ----------
+let glassScale = 1;
+function glassSize(f) {
+  glassScale = Math.max(0.6, Math.min(2.2, glassScale * f));
+  glass.el.content.style.setProperty("--gs", glassScale.toFixed(3));
+}
+async function startLink() {
+  if (link || linkStarting) { pairEl.hidden = Boolean(link && link.peers); return; }
+  linkStarting = true;
+  $("glass-code").textContent = "....";
+  pairEl.hidden = false;
+  try {
+    link = await host({
+      onCode: (c) => { $("glass-code").textContent = c; },
+      onPeers: (n) => {
+        link.peers = n;
+        pairEl.hidden = n > 0 || view !== "glass";
+        pairBtn.hidden = n > 0;
+        if (n > 0) { hint("Laptop connected. Point to move, pinch to click.", 4000); link.broadcast({ t: "state", ...glass.state }); }
+        else glass.hideCursor();
+      },
+      onMessage: (m, reply) => onRemote(m, reply),
+    });
+    link.peers = 0;
+  } catch (e) {
+    $("glass-code").textContent = "----";
+    $("glass-pair-note").textContent = "Pairing is unavailable right now. You can still tap links on this screen.";
+  }
+  linkStarting = false;
+}
+function onRemote(m, reply) {
+  if (!m || typeof m !== "object" || view !== "glass") return;
+  if (m.t === "cur") glass.cursor(+m.x, +m.y);
+  else if (m.t === "lost") glass.hideCursor();
+  else if (m.t === "click") glass.click(+m.x, +m.y);
+  else if (m.t === "scroll") glass.scroll(Math.max(-2, Math.min(2, +m.dy || 0)));
+  else if (m.t === "back") glass.back();
+  else if (m.t === "load" && typeof m.url === "string") loadURL(m.url);
+  else if (m.t === "size") glassSize(m.up ? 1.1 : 0.9);
+  else if (m.t === "hello") reply({ t: "state", ...glass.state });
+}
+// Direct touch on the display still works: tap a link, drag to scroll.
+function wireGlassTouch() {
+  const el = $("glass");
+  let down = null;
+  el.addEventListener("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY, last: e.clientY, moved: false }; });
+  el.addEventListener("pointermove", (e) => {
+    if (!down) return;
+    if (Math.abs(e.clientY - down.y) > 8) down.moved = true;
+    if (down.moved) { glass.dragBy(e.clientY - down.last); down.last = e.clientY; }
+  });
+  el.addEventListener("pointerup", (e) => { if (down && !down.moved) glass.tapAt(e.clientX, e.clientY); down = null; });
+  el.addEventListener("pointercancel", () => { down = null; });
 }
 // Controls reflect into the pyramid too, so they fade away when not in use.
 let uiTimer;
 function pokeUI() {
   ar.classList.remove("ui-hidden");
   clearTimeout(uiTimer);
-  if (view !== "pyramid") return;
+  if (!FLOAT(view)) return;
   uiTimer = setTimeout(() => {
-    if (view === "pyramid" && helpEl.hidden && !ar.contains(document.activeElement)) ar.classList.add("ui-hidden");
+    if (FLOAT(view) && helpEl.hidden && !ar.contains(document.activeElement)) ar.classList.add("ui-hidden");
   }, 5000);
 }
 function goFullscreen() {
@@ -444,11 +529,14 @@ function exitAR() {
   running = false;
   if (holo) holo.stop();
   if (pyr) pyr.stop();
+  if (glass) { glass.stop(); glass.hideCursor(); }
+  if (link) { link.close(); link = null; }
+  pairEl.hidden = true;
   keepAwake(false);
   clearTimeout(uiTimer);
   helpEl.hidden = true;
   try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch {}
-  ar.classList.remove("holo", "pyr", "ui-hidden");
+  ar.classList.remove("holo", "pyr", "glassv", "ui-hidden");
   removeEventListener("deviceorientation", onOrientation);
   stopCamera();
   destroyCloud();
@@ -480,6 +568,7 @@ $("zoom-in").addEventListener("click", () => zoom(0.85));
 $("zoom-out").addEventListener("click", () => zoom(1.18));
 viewBtn.addEventListener("click", switchView);
 $("help-btn").addEventListener("click", showHelp);
+pairBtn.addEventListener("click", () => { pairEl.hidden = false; pokeUI(); });
 $("pyr-help-ok").addEventListener("click", hideHelp);
 darkBtn.addEventListener("click", () => {
   const on = !pyr.state.dark;
@@ -493,4 +582,4 @@ addEventListener("keydown", (e) => { if (e.key === "Escape" && !helpEl.hidden) h
 $("recenter-btn").addEventListener("click", () => { if (view === "holo") return holo.recenter(); if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
 
 // Test hook (no effect for users).
-window.__airpane = { normalizeInput, get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, uiHidden: ar.classList.contains("ui-hidden") }; } };
+window.__airpane = { normalizeInput, get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };

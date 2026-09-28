@@ -1,0 +1,37 @@
+/* ---------- Floating glass (phone or iPad flat, clear sheet at 45 degrees) ---------- */
+#ar.glassv { background: #000; }
+#ar.glassv #cam, #ar.glassv #stage { display: none; }
+.glass { position: absolute; inset: 0; overflow: hidden; background: #000; touch-action: none; }
+.glass[hidden] { display: none; }
+.g-flip { position: absolute; inset: 0; transform: scaleY(-1); }
+.g-doc { position: absolute; inset: 0; overflow: hidden; }
+.g-content { --gs: 1; padding: 6vmin 7vmin 30vmin; color: #fff; font: 400 calc(clamp(18px, 3.4vmin, 36px) * var(--gs))/1.45 var(--font); will-change: transform; }
+.g-content h1 { font: 700 2em/1.1 var(--display); letter-spacing: -0.02em; margin: 0.2em 0 0.6em; }
+.g-content h2 { font: 700 1.45em/1.2 var(--display); margin: 1.2em 0 0.4em; }
+.g-content h3 { font: 600 1.15em/1.25 var(--display); margin: 1em 0 0.3em; }
+.g-content p { margin: 0 0 0.7em; }
+.g-content .g-li { padding-left: 1em; position: relative; }
+.g-content .g-li::before { content: ""; position: absolute; left: 0.2em; top: 0.62em; width: 0.35em; height: 0.35em; border-radius: 50%; background: var(--mint); }
+.g-content figure { margin: 0.6em 0 1em; }
+.g-content img { display: block; max-width: min(45%, 520px); max-height: 30vmin; border-radius: 10px; }
+.g-content figcaption { font-size: 0.7em; color: #aab3c8; margin-top: 0.3em; }
+.g-site { font-size: 0.7em; color: var(--mint); letter-spacing: 0.04em; }
+.g-link { color: #8ef8da; text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.15em; border-radius: 6px; cursor: pointer; }
+.g-link.hover { background: rgba(124, 245, 211, 0.28); box-shadow: 0 0 0 0.15em rgba(124, 245, 211, 0.28); color: #fff; }
+.g-wait { color: #aab3c8; }
+.g-cursor { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 4px solid #7cf5d3; box-shadow: 0 0 18px rgba(124, 245, 211, 0.9), inset 0 0 10px rgba(124, 245, 211, 0.6); pointer-events: none; transition: left 70ms linear, top 70ms linear; z-index: 2; }
+.g-cursor[hidden] { display: none; }
+.g-cursor.pulse { animation: gpulse 0.35s ease-out; }
+@keyframes gpulse { 0% { transform: scale(1); } 40% { transform: scale(0.6); background: rgba(124, 245, 211, 0.6); } 100% { transform: scale(1); } }
+
+/* controls fade away so they don't show in the reflection */
+.fade-only { display: none; }
+#ar.glassv .fade-only, #ar.pyr .fade-only { display: inline-flex; }
+#ar.glassv #recenter-btn { display: none; }
+#ar.glassv.ui-hidden .hud-top, #ar.glassv.ui-hidden .dock, #ar.glassv.ui-hidden .hint { opacity: 0; pointer-events: none; }
+
+.glass-pair { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 76px); transform: translateX(-50%); z-index: 4; width: min(460px, calc(100% - 32px)); padding: 14px 16px; border-radius: 16px; background: rgba(13, 18, 36, 0.92); border: 1px solid rgba(124, 245, 211, 0.4); text-align: center; transition: opacity 0.4s; }
+.glass-pair[hidden] { display: none; }
+.glass-pair .code { font: 700 40px/1 var(--display); letter-spacing: 0.25em; color: var(--mint); margin: 6px 0 8px; padding-left: 0.25em; }
+.glass-pair p { margin: 0; color: #c9d0e3; font-size: 14px; line-height: 1.45; }
+.glass-pair b { color: #fff; }
