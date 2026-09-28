@@ -1,0 +1,19 @@
+{
+  "name": "airpane-ar-browser",
+  "version": "1.0.0",
+  "description": "Airpane - open any website in the air through the phone camera",
+  "scripts": {
+    "dev": "node scripts/dev-server.js",
+    "test": "node tests/math.test.mjs && node tests/api.test.js && node tests/e2e.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "three": "^0.186.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}
