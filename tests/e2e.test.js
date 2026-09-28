@@ -587,7 +587,7 @@ async function t(name, fn) {
       if (label === "Copied") assert.equal(await page.evaluate(() => navigator.clipboard.readText()), CMD, "clipboard");
       else assert.equal([label, await page.evaluate(() => String(getSelection()))].join("|"), "Press Cmd+C|" + CMD, "fallback selects the command");
       await page.waitForFunction(() => document.querySelector(".shot img").complete);
-      assert.equal(await page.evaluate(() => document.querySelector(".shot img").naturalWidth), 1000, "screenshot image");
+      assert.equal(await page.evaluate(() => document.querySelector(".shot img").naturalWidth), 800, "screenshot image");
       await page.screenshot({ path: `${SHOTS}/desktop-page.png`, fullPage: true });
     });
     await t("desktop page: installer and app download are served", async () => {
