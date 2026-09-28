@@ -531,6 +531,12 @@ async function t(name, fn) {
       await ctl.locator("#pad").scrollIntoViewIfNeeded();
       await ctl.locator(".pad-card").screenshot({ path: `${SHOTS}/glass-4-live-view.png` });
       await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp");
+      const fs0 = c.m.view.fs;
+      await ctl.click("#bigger");
+      await ctl.waitForFunction((f) => window.__ctl.state.mirror.view.fs > f + 0.5, fs0, { timeout: 10000 });
+      const fsD = await disp.evaluate(() => parseFloat(getComputedStyle(document.querySelector(".g-content")).fontSize));
+      assert.ok(Math.abs((await ctl.evaluate(() => window.__ctl.state.mirror.view.fs)) - fsD) < 0.01, "text size out of sync");
+      await ctl.click("#smaller");
     });
 
     await t("controller: opening a site from the laptop shows it in the air", async () => {

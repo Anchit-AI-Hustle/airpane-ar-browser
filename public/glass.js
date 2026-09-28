@@ -39,7 +39,11 @@ export function createGlass(root, { onState } = {}) {
   const state = () => ({ url: s.url, title: s.title, y: s.y, max: maxY(), hover: s.hover ? s.hover.textContent : "", loading: s.loading, error: s.error, canBack: s.history.length > 0, view: layout() });
   const emit = () => onState && onState(state());
   let resizeT = null;
-  addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (s.on) { applyScroll(); emit(); } }, 150); });
+  // Screen rotation, window size or text size changes: tell the laptop the new layout.
+  const relayout = () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (s.on) { applyScroll(); emit(); } }, 150); };
+  addEventListener("resize", relayout);
+  let lastFs = 0;
+  if (typeof ResizeObserver === "function") new ResizeObserver(() => { const fs = parseFloat(getComputedStyle(content).fontSize); if (fs !== lastFs) { lastFs = fs; relayout(); } }).observe(content);
 
   // The link under the cursor, found by real hit-testing through the flip.
   // Where the cursor really is on screen (the page is flipped, so viewer y counts
