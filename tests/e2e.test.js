@@ -516,6 +516,23 @@ async function t(name, fn) {
       await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp");
     });
 
+    await t("controller: live view shows the same page as the glass, same scroll and shape", async () => {
+      for (let i = 0; i < 2; i++) { await ctl.keyboard.press("PageDown"); await ctl.waitForTimeout(120); }
+      await ctl.waitForFunction(() => { const m = window.__ctl.state.mirror; return m.loaded && m.y > 0 && document.querySelector("#mirror .g-content h1"); }, null, { timeout: 30000 });
+      const d = await disp.evaluate(() => ({ g: window.__airpane.state.glass, h1: document.querySelector(".g-content h1").textContent, links: document.querySelectorAll(".g-content .g-link").length }));
+      const c = await ctl.evaluate(() => { const p = document.getElementById("pad").getBoundingClientRect(); return { m: window.__ctl.state.mirror, h1: document.querySelector("#mirror .g-content h1").textContent, links: document.querySelectorAll("#mirror .g-link").length, ar: p.width / p.height, empty: document.getElementById("pad-empty").hidden, box: document.querySelector("#mirror .m-box").getBoundingClientRect().width / p.width }; });
+      assert.equal(c.m.loaded, d.g.url, "mirror shows another page");
+      assert.equal(c.h1, d.h1);
+      assert.equal(c.links, d.links);
+      assert.equal(Math.round(c.m.y), Math.round(d.g.y), "scroll out of sync");
+      assert.ok(Math.abs(c.ar - d.g.view.w / d.g.view.h) < 0.02, "pad shape differs from the display: " + c.ar);
+      assert.ok(Math.abs(c.box - 1) < 0.01, "mirror not fitted to the pad: " + c.box);
+      assert.equal(c.empty, true, "placeholder still covers the live view");
+      await ctl.locator("#pad").scrollIntoViewIfNeeded();
+      await ctl.locator(".pad-card").screenshot({ path: `${SHOTS}/glass-4-live-view.png` });
+      await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp");
+    });
+
     await t("controller: opening a site from the laptop shows it in the air", async () => {
       await ctl.fill("#go-url", "example.com");
       await ctl.press("#go-url", "Enter");

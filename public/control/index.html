@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/glass.css" />
   <link rel="stylesheet" href="/control/control.css" />
 </head>
 <body>
@@ -59,9 +60,11 @@
           <div id="gesture" class="gesture muted small">No hand in view</div>
         </div>
         <div class="card pad-card">
-          <div id="pad" class="pad" tabindex="0" aria-label="Touchpad for the floating page. Move to point, click to open links, scroll to scroll.">
+          <div class="pad-head"><b>Live view</b><span class="muted small">The same page is floating in the glass. Move, click and scroll on it.</span></div>
+          <div id="pad" class="pad" tabindex="0" aria-label="Live view of the floating page. Move to point, click to open links, scroll to scroll.">
+            <div id="mirror" class="mirror" aria-hidden="true"><div class="m-box"><div class="g-doc"><div class="g-content"></div></div></div></div>
+            <div id="pad-empty" class="pad-empty">Waiting for the page</div>
             <div id="pad-cursor" class="pad-cursor" hidden></div>
-            <span>Trackpad: move, click and scroll here</span>
           </div>
           <p class="muted small">Keys: arrows scroll, Backspace goes back.</p>
         </div>

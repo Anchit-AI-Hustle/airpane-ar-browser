@@ -2,6 +2,7 @@
 // cursor on the floating page, over a direct link to the display device.
 import { createGestures } from "/gestures.js";
 import { join, cleanCode } from "/link.js";
+import { renderBlocks } from "/glass.js";
 
 const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1";
 const HAND_MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
@@ -11,7 +12,7 @@ const video = $("video"), overlay = $("overlay"), ctx = overlay.getContext("2d")
 let link = null, handsOn = true, landmarker = null, stream = null, lastSent = 0, lastCur = null;
 const gestures = createGestures();
 const S = { hand: false, pinched: false, events: { cur: 0, click: 0, scroll: 0 } };
-window.__ctl = { get state() { return { connected: Boolean(link), handsOn, detector: Boolean(landmarker), camera: Boolean(stream), ...S, gesture: gestures.state }; } };
+window.__ctl = { get state() { return { connected: Boolean(link), handsOn, mirror: { url: M.url, loaded: M.loaded, y: M.y, view: M.view }, detector: Boolean(landmarker), camera: Boolean(stream), ...S, gesture: gestures.state }; } };
 
 function send(m) { if (link) link.send(m); }
 
@@ -43,7 +44,61 @@ function onState(m) {
   if (!m || m.t !== "state") return;
   $("now-title").textContent = m.loading ? "Opening..." : m.error ? "Could not open: " + m.error : (m.title || "Connected");
   $("now-hover").textContent = m.hover ? "Pinch to open: " + m.hover : "Point at a link on the floating page";
+  mirror(m);
 }
+
+// ---------- live view: an exact copy of the floating page, the right way up ----------
+// Laid out at the display's own size and text size, then scaled to fit the pad, so
+// scroll position and cursor position match the floating page exactly.
+const mBox = document.querySelector("#mirror .m-box"), mContent = document.querySelector("#mirror .g-content");
+const M = { url: "", loaded: "", pending: "", view: null, y: 0, hover: "" };
+let mirrorReq = 0;
+function mirror(m) {
+  const empty = $("pad-empty");
+  if (m.view && m.view.w > 0 && m.view.h > 0) {
+    M.view = m.view;
+    pad.style.setProperty("--ar", `${m.view.w} / ${m.view.h}`);
+    mBox.style.width = m.view.w + "px"; mBox.style.height = m.view.h + "px";
+    mContent.style.fontSize = m.view.fs + "px"; mContent.style.padding = m.view.pad;
+    mContent.style.setProperty("--img-h", Math.round(Math.min(m.view.w, m.view.h) * 0.3) + "px");
+    fitMirror();
+  }
+  M.y = +m.y || 0; M.hover = m.hover || "";
+  if (m.loading) { empty.textContent = "Opening the page"; empty.hidden = false; mContent.innerHTML = ""; M.loaded = ""; M.pending = ""; mirrorReq++; }
+  else if (m.error) { empty.textContent = "Could not open this page: " + m.error; empty.hidden = false; mContent.innerHTML = ""; M.loaded = ""; }
+  else if (m.url && m.url !== M.loaded && m.url !== M.pending) loadMirror(m.url);
+  else if (!m.url) { empty.textContent = "Open a site above to start"; empty.hidden = false; }
+  M.url = m.url || "";
+  paintMirror();
+}
+async function loadMirror(url) {
+  const id = ++mirrorReq;
+  M.pending = url;
+  try {
+    const r = await fetch("/api/reader?url=" + encodeURIComponent(url));
+    const data = await r.json();
+    if (id !== mirrorReq) return;
+    if (!r.ok) throw new Error(data.error || "Could not open");
+    mContent.innerHTML = renderBlocks(data);
+    M.loaded = url; M.pending = ""; $("pad-empty").hidden = true;
+  } catch (e) {
+    if (id !== mirrorReq) return;
+    $("pad-empty").textContent = "Live view unavailable for this page. It still floats in the glass."; $("pad-empty").hidden = false;
+    M.loaded = url; M.pending = "";
+  }
+  paintMirror();
+}
+function paintMirror() {
+  mContent.style.transform = `translateY(${-M.y}px)`;
+  for (const a of mContent.querySelectorAll(".g-link.hover")) a.classList.remove("hover");
+  if (M.hover) for (const a of mContent.querySelectorAll(".g-link")) if (a.textContent === M.hover) { a.classList.add("hover"); break; }
+}
+function fitMirror() {
+  if (!M.view) return;
+  const k = pad.clientWidth / M.view.w;
+  mBox.style.transform = `scale(${k})`;
+}
+new ResizeObserver(fitMirror).observe(document.getElementById("pad"));
 function onClosed() {
   link = null;
   $("now-title").textContent = "Disconnected. Reload the display and connect again.";
@@ -133,10 +188,10 @@ function tick(now) {
   S.hand = Boolean(lm);
   if (!handsOn) return;
   for (const ev of gestures.update(lm || null, now)) {
-    if (ev.t === "cur") sendCur(ev);
+    if (ev.t === "cur") { sendCur(ev); showPad(ev); }
     else if (ev.t === "click") { send(ev); S.events.click++; }
     else if (ev.t === "scroll") { send(ev); S.events.scroll++; }
-    else if (ev.t === "lost") { send(ev); lastCur = null; }
+    else if (ev.t === "lost") { send(ev); lastCur = null; padCur.hidden = true; }
   }
   const g = gestures.state;
   S.pinched = g.pinched;

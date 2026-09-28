@@ -454,6 +454,7 @@ let glassScale = 1;
 function glassSize(f) {
   glassScale = Math.max(0.6, Math.min(2.2, glassScale * f));
   glass.el.content.style.setProperty("--gs", glassScale.toFixed(3));
+  glass.refresh();
 }
 async function startLink() {
   if (link || linkStarting) { pairEl.hidden = Boolean(link && link.peers); return; }

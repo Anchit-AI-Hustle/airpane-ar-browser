@@ -33,8 +33,13 @@ export function createGlass(root, { onState } = {}) {
 
   const maxY = () => Math.max(0, content.scrollHeight - doc.clientHeight);
   const applyScroll = () => { s.y = Math.min(maxY(), Math.max(0, s.y)); content.style.transform = `translateY(${-s.y}px)`; updateHover(); };
-  const state = () => ({ url: s.url, title: s.title, y: s.y, max: maxY(), hover: s.hover ? s.hover.textContent : "", loading: s.loading, error: s.error, canBack: s.history.length > 0 });
+  // Layout the laptop needs to draw an exact mirror of this page: the page box
+  // size and the computed text size and padding (these depend on this screen).
+  const layout = () => { const cs = getComputedStyle(content); return { w: doc.clientWidth, h: doc.clientHeight, fs: parseFloat(cs.fontSize) || 20, pad: cs.padding }; };
+  const state = () => ({ url: s.url, title: s.title, y: s.y, max: maxY(), hover: s.hover ? s.hover.textContent : "", loading: s.loading, error: s.error, canBack: s.history.length > 0, view: layout() });
   const emit = () => onState && onState(state());
+  let resizeT = null;
+  addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (s.on) { applyScroll(); emit(); } }, 150); });
 
   // The link under the cursor, found by real hit-testing through the flip.
   // Where the cursor really is on screen (the page is flipped, so viewer y counts
@@ -110,7 +115,8 @@ export function createGlass(root, { onState } = {}) {
       if (a) load(a.dataset.href);
       return Boolean(a);
     },
-    dragBy(screenDy) { s.y += screenDy; applyScroll(); }, // the page is flipped, so dragging down shows later content
+    dragBy(screenDy) { s.y += screenDy; applyScroll(); emit(); }, // the page is flipped, so dragging down shows later content
+    refresh() { applyScroll(); emit(); },
     el: { flip, doc, content, cursor: cursorEl },
   };
 }
