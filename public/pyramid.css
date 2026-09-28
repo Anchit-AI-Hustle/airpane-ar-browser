@@ -1,0 +1,38 @@
+/* ---------- Pyramid hologram (phone lying flat) ---------- */
+#ar.pyr { background: #000; }
+#ar.pyr #cam, #ar.pyr #stage { display: none; }
+.pyr { position: absolute; inset: 0; overflow: hidden; background: #000; }
+.pyr[hidden] { display: none; }
+.pyr-view { position: absolute; overflow: hidden; pointer-events: none; }
+.pyr-clip { position: absolute; inset: 0; overflow: hidden; transform: scaleY(-1); }
+.pyr-clip iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: #fff; pointer-events: none; }
+.pyr-mark { position: absolute; border: 1.5px dashed rgba(124, 245, 211, 0.75); border-radius: 3px; transition: opacity 0.4s; }
+.pyr-mark::before, .pyr-mark::after { content: ""; position: absolute; left: 50%; top: 50%; background: rgba(124, 245, 211, 0.75); transform: translate(-50%, -50%); }
+.pyr-mark::before { width: 60%; height: 1.5px; }
+.pyr-mark::after { width: 1.5px; height: 60%; }
+.pyr-only { display: none; }
+#ar.pyr .pyr-only { display: inline-flex; }
+#ar.pyr #recenter-btn { display: none; }
+.view-btn.plain::before { content: ""; }
+#ar .hud-top, #ar .dock { transition: opacity 0.4s; }
+#ar.pyr.ui-hidden .hud-top, #ar.pyr.ui-hidden .dock, #ar.pyr.ui-hidden .pyr-mark, #ar.pyr.ui-hidden .hint { opacity: 0; pointer-events: none; }
+#ar.pyr.ui-hidden .status { opacity: 0; }
+
+.pyr-help { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.72); }
+.pyr-help[hidden] { display: none; }
+.pyr-help .card { width: min(460px, 100%); max-height: calc(100svh - 32px); overflow: auto; padding: 22px; border-radius: 16px; background: #0d1224; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); }
+.pyr-help h2 { font: 700 22px var(--display); margin: 0 0 12px; }
+.pyr-help ol { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 8px; line-height: 1.45; color: #d5dbee; }
+.pyr-help a, .notes a { color: var(--mint); }
+.pyr-help .note { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 0 0 16px; }
+
+/* landing: choose how to show the page */
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-width: 500px; margin: 0 0 12px; }
+.mode-opt { position: relative; cursor: pointer; }
+.mode-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.mode-opt span { display: grid; gap: 3px; height: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); transition: border-color 0.15s, background 0.15s; }
+.mode-opt b { font-size: 14px; font-weight: 600; }
+.mode-opt small { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.mode-opt input:checked + span { border-color: rgba(124, 245, 211, 0.7); background: rgba(124, 245, 211, 0.08); }
+.mode-opt input:focus-visible + span { outline: 2px solid var(--mint); outline-offset: 2px; }
+@media (max-width: 380px) { .modes { grid-template-columns: 1fr; } }

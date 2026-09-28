@@ -3,6 +3,7 @@ import {
   scale, norm, matFacing, applyMat, viewMatrix, cameraCSS, objectCSS,
 } from "./math3d.js";
 import { createHolo } from "./holo.js";
+import { createPyramid } from "./pyramid.js";
 
 const $ = (id) => document.getElementById(id);
 const landing = $("landing"), ar = $("ar"), cam = $("cam"), stage = $("stage");
@@ -60,7 +61,9 @@ let dist = 1000, running = false, placed = false, ready = false;
 // "holo": laptop/desktop, the camera tracks your head and the page floats in front
 // of the screen. "room": phone, the back camera shows the room and the page is
 // pinned in it.
-let view = "room", holo = null;
+let view = "room", holo = null, pyr = null;
+const VIEWS = ["pyramid", "holo", "room"];
+const LABEL = { pyramid: "Pyramid", holo: "Hologram", room: "Camera room" };
 const viewBtn = $("view-btn"), trackEl = $("track");
 
 export function pickView() {
@@ -91,6 +94,7 @@ function initScene() {
   panelEl.append(frameHost, stateEl);
   stage.appendChild(panelEl);
   holo = createHolo({ stage, panel: panelEl, video: cam, onStatus: onHoloStatus });
+  pyr = createPyramid($("pyr"));
   addEventListener("resize", onResize);
   addEventListener("orientationchange", () => setTimeout(onResize, 300));
 }
@@ -122,6 +126,7 @@ function onResize() {
 }
 
 function zoom(f) {
+  if (view === "pyramid") return pyr.setSize(pyr.state.size * (f < 1 ? 1.05 : 0.95));
   if (view === "holo") return holo.zoom(f);
   dist = clamp(dist * f, 350, 5000);
   panelPos = scale(norm(panelPos), dist);
@@ -129,6 +134,7 @@ function zoom(f) {
 
 function loop() {
   if (!running) return;
+  if (view === "pyramid") { requestAnimationFrame(loop); return; }
   if (view === "holo") { holo.frame(performance.now(), panelSize()); requestAnimationFrame(loop); return; }
   camQ = gyro.active ? quatNlerp(camQ, gyro.target, 0.5) : quatFromEulerYXZ(look.pitch, look.yaw, 0);
   render();
@@ -302,6 +308,16 @@ async function loadURL(raw, { push = true } = {}) {
   } catch {}
   if (current !== url) return; // a newer load started
 
+  if (view === "pyramid") {
+    showState("");
+    if (check.frameable || check.unknown) { pyr.show(url); setStatus(new URL(url).host); }
+    else {
+      pyr.clear();
+      setStatus(new URL(url).host + " can't be shown");
+      toast("This site blocks being shown inside other apps, so it can't float in the pyramid. Try Wikipedia or a YouTube embed.", 6000);
+    }
+    return;
+  }
   if (check.frameable || check.unknown) return showDirect(url);
   if (await cloudEnabled()) {
     try { return await showCloud(url); }
@@ -319,9 +335,11 @@ document.addEventListener("click", (e) => {
 async function enterAR(raw) {
   if (running) return loadURL(raw);
   launchBtn.disabled = true;
-  view = pickView();
+  const mode = (document.querySelector('input[name="mode"]:checked') || {}).value;
+  view = mode === "pyramid" ? "pyramid" : pickView();
+  if (view === "pyramid") goFullscreen(); // must happen inside the tap
   const orientP = view === "room" ? requestOrientation() : Promise.resolve(false); // first call inside the tap on iPhone
-  const camP = startCamera(view === "holo" ? "user" : "environment");
+  const camP = view === "pyramid" ? Promise.resolve(false) : startCamera(view === "holo" ? "user" : "environment");
   const [, camOk] = await Promise.all([orientP, camP]);
   launchBtn.disabled = false;
 
@@ -342,11 +360,27 @@ async function enterAR(raw) {
 
 function applyView(camOk) {
   ar.classList.toggle("holo", view === "holo");
-  viewBtn.textContent = view === "holo" ? "Hologram" : "Camera room";
+  ar.classList.toggle("pyr", view === "pyramid");
+  ar.classList.remove("ui-hidden");
+  viewBtn.textContent = LABEL[view];
   viewBtn.setAttribute("aria-label", "3D view: " + viewBtn.textContent + ". Switch view");
   trackEl.hidden = true;
   stage.style.perspectiveOrigin = "";
   placePanel();
+  if (view === "pyramid") {
+    holo.stop();
+    ar.classList.remove("no-cam");
+    pyr.start();
+    if (current) pyr.show(current);
+    keepAwake(true);
+    let seen = false;
+    try { seen = localStorage.getItem("airpane-pyr-help") === "1"; } catch {}
+    if (!seen) showHelp(); else hint("Stand the pyramid on the + mark. Tap the screen for controls.", 5000);
+    pokeUI();
+    return;
+  }
+  pyr.stop();
+  keepAwake(false);
   if (view === "holo") {
     holo.start();
     hint(camOk ? "Move your head. The page floats in front of your screen." : "Move the mouse to look around the page in 3D.", 6000);
@@ -365,18 +399,56 @@ function onHoloStatus(st) {
 }
 
 async function switchView() {
-  view = view === "holo" ? "room" : "holo";
+  view = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
   stopCamera();
   gyro.active = false; look.yaw = 0; look.pitch = 0; camQ = quat();
+  if (view === "pyramid") { applyView(false); if (current) loadURL(current, { push: false }); return; }
   if (view === "room") await requestOrientation();
   const ok = await startCamera(view === "holo" ? "user" : "environment");
   applyView(ok);
+  if (current) loadURL(current, { push: false });
+}
+
+// ---------- pyramid helpers ----------
+const helpEl = $("pyr-help"), darkBtn = $("dark-btn");
+function showHelp() { helpEl.hidden = false; $("pyr-help-ok").focus(); }
+function hideHelp() {
+  helpEl.hidden = true;
+  try { localStorage.setItem("airpane-pyr-help", "1"); } catch {}
+  hint("Stand the pyramid on the + mark. Tap the screen for controls.", 5000);
+  pokeUI();
+}
+// Controls reflect into the pyramid too, so they fade away when not in use.
+let uiTimer;
+function pokeUI() {
+  ar.classList.remove("ui-hidden");
+  clearTimeout(uiTimer);
+  if (view !== "pyramid") return;
+  uiTimer = setTimeout(() => {
+    if (view === "pyramid" && helpEl.hidden && !ar.contains(document.activeElement)) ar.classList.add("ui-hidden");
+  }, 5000);
+}
+function goFullscreen() {
+  const el = document.documentElement;
+  try { const p = el.requestFullscreen && el.requestFullscreen({ navigationUI: "hide" }); if (p && p.catch) p.catch(() => {}); } catch {}
+}
+let wake = null;
+async function keepAwake(on) {
+  try {
+    if (on && !wake && navigator.wakeLock) wake = await navigator.wakeLock.request("screen");
+    if (!on && wake) { await wake.release(); wake = null; }
+  } catch { wake = null; }
 }
 
 function exitAR() {
   running = false;
   if (holo) holo.stop();
-  ar.classList.remove("holo");
+  if (pyr) pyr.stop();
+  keepAwake(false);
+  clearTimeout(uiTimer);
+  helpEl.hidden = true;
+  try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch {}
+  ar.classList.remove("holo", "pyr", "ui-hidden");
   removeEventListener("deviceorientation", onOrientation);
   stopCamera();
   destroyCloud();
@@ -407,7 +479,18 @@ $("back-btn").addEventListener("click", () => history.back());
 $("zoom-in").addEventListener("click", () => zoom(0.85));
 $("zoom-out").addEventListener("click", () => zoom(1.18));
 viewBtn.addEventListener("click", switchView);
+$("help-btn").addEventListener("click", showHelp);
+$("pyr-help-ok").addEventListener("click", hideHelp);
+darkBtn.addEventListener("click", () => {
+  const on = !pyr.state.dark;
+  pyr.setDark(on);
+  darkBtn.textContent = on ? "Glow: on" : "Glow: off";
+  darkBtn.setAttribute("aria-pressed", String(on));
+});
+ar.addEventListener("pointerdown", pokeUI);
+ar.addEventListener("focusin", pokeUI);
+addEventListener("keydown", (e) => { if (e.key === "Escape" && !helpEl.hidden) hideHelp(); });
 $("recenter-btn").addEventListener("click", () => { if (view === "holo") return holo.recenter(); if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
 
 // Test hook (no effect for users).
-window.__airpane = { normalizeInput, get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state }; } };
+window.__airpane = { normalizeInput, get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, uiHidden: ar.classList.contains("ui-hidden") }; } };
