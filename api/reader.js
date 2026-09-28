@@ -2,7 +2,10 @@
 // Turns a web page into clean, same-origin content so the floating view can be
 // fully controlled (cursor, click, scroll) from another device. Uses Mozilla's
 // Readability (the engine behind Firefox Reader View).
-const { parseHTML } = require("linkedom");
+// linkedom's CommonJS build require()s an ESM-only css-select, which fails on Node 20.
+// Its ESM build works everywhere, so load it with import().
+let parseHTML = null;
+const loadDom = async () => (parseHTML ||= (await import("linkedom")).parseHTML);
 const { Readability } = require("@mozilla/readability");
 const { send, assertPublicUrl } = require("./_lib");
 
@@ -99,6 +102,7 @@ function fallback(doc, base) {
 
 async function read(url) {
   const { html, finalUrl } = await fetchPage(url);
+  await loadDom();
   const { document } = parseHTML(html);
   const title = clean(document.querySelector("title")?.textContent).trim();
   let blocks = [];
