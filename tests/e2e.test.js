@@ -592,12 +592,16 @@ async function t(name, fn) {
     });
     await t("desktop page: installer and app download are served", async () => {
       const sh = await (await fetch(BASE + "/desktop/install.sh")).text();
-      assert.ok(sh.startsWith("#!/usr/bin/env bash") && sh.includes("airpane-desktop.zip"));
-      const z = await fetch(BASE + "/desktop/airpane-desktop.zip");
-      assert.equal(z.status, 200);
-      const buf = Buffer.from(await z.arrayBuffer());
-      assert.equal(buf.slice(0, 2).toString(), "PK");
-      assert.ok(buf.length > 10000);
+      assert.ok(sh.startsWith("#!/usr/bin/env bash"));
+      // every app file the installer lists is served, byte for byte
+      const list = sh.split("FILES='")[1].split("'")[0].trim().split("\n").map((l) => l.split(" "));
+      assert.ok(list.length >= 13, "file list");
+      for (const [sum, f] of list) {
+        const r = await fetch(BASE + "/desktop/app/" + f);
+        assert.equal(r.status, 200, f);
+        const got = require("node:crypto").createHash("sha1").update(Buffer.from(await r.arrayBuffer())).digest("hex");
+        assert.equal(got, sum, f + " differs from the installer's list");
+      }
     });
     await t("desktop page: fits a phone", async () => {
       const m = await browser.newPage({ viewport: { width: 390, height: 844 } });

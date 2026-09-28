@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Airpane Desktop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Airpane <span class="tag">Desktop</span></div>
+    <div id="status" class="status" role="status"><span class="dot"></span><span id="status-text">Starting</span></div>
+    <div class="top-actions">
+      <label class="switch" title="Show what each gesture would do without touching your computer">
+        <input type="checkbox" id="dry" /><span class="track"></span><span>Test mode</span>
+      </label>
+      <button id="pause" class="btn primary" type="button">Pause</button>
+      <button id="quit" class="btn ghost" type="button">Quit</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main class="grid">
+    <section class="col">
+      <div class="card cam">
+        <div class="cam-box">
+          <img id="preview" alt="Camera view with your hand's tracking points" />
+          <div id="cam-empty" class="cam-empty">Starting the camera</div>
+          <div class="cam-tags">
+            <span id="pose" class="pose-tag">No hand</span>
+            <span id="fps" class="small-tag"></span>
+          </div>
+        </div>
+        <p class="hint">The box is your working area: moving your hand across it moves the cursor across the whole screen.</p>
+      </div>
+
+      <div class="card">
+        <h2>Just now</h2>
+        <ol id="log" class="log"><li class="muted">Nothing yet. Point your index finger at the camera.</li></ol>
+      </div>
+
+      <div class="card">
+        <h2>Safety</h2>
+        <ul class="plain">
+          <li><b>Hold a fist</b> for about a second to pause or resume (you can change this below).</li>
+          <li><b>Ctrl + Alt + P</b> pauses from the keyboard, <b>Ctrl + Alt + Q</b> quits.</li>
+          <li>If your hand leaves the camera while dragging, the mouse button is released.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="col">
+      <div class="card">
+        <div class="card-head"><h2>Hand controls</h2><span class="muted small">Always on while Airpane runs</span></div>
+        <div id="modes" class="modes"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Gesture rules</h2><button id="add" class="btn small" type="button">Add rule</button></div>
+        <p class="muted small">When you make a gesture, Airpane does the action. Each gesture has one job, so gestures already in use are greyed out. Hold = how long to keep the pose still. Repeat = keep firing while held. Cooldown = wait before it can fire again.</p>
+        <div id="rules" class="rules"></div>
+        <ul id="warnings" class="warnings"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Tuning</h2>
+        <div class="tune">
+          <label>Hand travel <output id="area-v"></output>
+            <input type="range" id="area" min="0.2" max="1" step="0.05" />
+            <span class="muted small">Smaller box = less arm movement, more precise hand needed.</span></label>
+          <label>Steadiness <output id="smoothing-v"></output>
+            <input type="range" id="smoothing" min="0" max="0.95" step="0.05" />
+            <span class="muted small">Higher calms a shaky hand, lower reacts faster.</span></label>
+          <label>Click speed <output id="click_ms-v"></output>
+            <input type="range" id="click_ms" min="150" max="900" step="50" />
+            <span class="muted small">Pinches shorter than this click; longer ones start a drag.</span></label>
+          <label>Scroll speed <output id="scroll_speed-v"></output>
+            <input type="range" id="scroll_speed" min="0.2" max="4" step="0.1" /></label>
+          <label>Box position, left to right <output id="center_x-v"></output>
+            <input type="range" id="center_x" min="0.2" max="0.8" step="0.05" /></label>
+          <label>Box position, top to bottom <output id="center_y-v"></output>
+            <input type="range" id="center_y" min="0.2" max="0.8" step="0.05" /></label>
+          <label class="row">Cursor follows
+            <select id="anchor"><option value="knuckle">Index knuckle (steadier)</option><option value="fingertip">Index fingertip</option></select></label>
+          <label class="row">Camera
+            <select id="camera"><option value="0">Built-in (0)</option><option value="1">Camera 1</option><option value="2">Camera 2</option></select></label>
+          <label class="switch"><input type="checkbox" id="natural_scroll" /><span class="track"></span><span>Natural scrolling (like a touchscreen)</span></label>
+          <label class="switch"><input type="checkbox" id="mirror" /><span class="track"></span><span>Mirror the camera</span></label>
+        </div>
+        <div class="foot"><button id="reset" class="btn ghost small" type="button">Reset everything to defaults</button><span id="saved" class="muted small" aria-live="polite"></span></div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

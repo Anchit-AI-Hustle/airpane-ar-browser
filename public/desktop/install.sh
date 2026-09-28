@@ -10,10 +10,31 @@ fail() { printf '\033[1;31mAirpane:\033[0m %s\n' "$*" >&2; exit 1; }
 
 say "Installing Airpane Desktop into: $DIR"
 mkdir -p "$DIR"
-tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-curl -fsSL "$BASE/airpane-desktop.zip" -o "$tmp/app.zip" || fail "Could not download Airpane. Check your internet connection."
+# --- files (generated) ---
+FILES='
+d178251918ed589b8002f6c4cbcb3dec76363c40 README.md
+3fa9c9ead726e0f234f390c498460e5d1c0e58cc airpane_desktop/__init__.py
+ef0cc488d266b722599982cb9d6c166f347c7e5b airpane_desktop/__main__.py
+7ee62933ebf6649f50847aa4f09d90501b58df92 airpane_desktop/actions.py
+fa0214a0f71c6fb88a5b47c7bb6a871f9cbac2cc airpane_desktop/app.py
+76ec7fd006e878398c9be2296483ab7698d7d05a airpane_desktop/config.py
+c30aaf4b81885d8cd57325558f6e28a080083e31 airpane_desktop/engine.py
+990351ab2e1028f58ff409b66bdd3e96150b9712 airpane_desktop/poses.py
+ffed5925a4aa660f7e8342a4f0c10211e26442fa airpane_desktop/server.py
+513bbe1b48a811bc0d31d209026f4629b4c33a32 airpane_desktop/ui/app.css
+0388d97f8d3667bbd5ecabaa0d87513ccc02fc24 airpane_desktop/ui/app.js
+8889a63791fd6670a4fba5f98f4150e1a17d2018 airpane_desktop/ui/index.html
+06b18e3d12bbee58da83a50870bac433633a0709 requirements.txt
+'
+# --- end files ---
 rm -rf "$DIR/app.new"; mkdir -p "$DIR/app.new"
-unzip -q "$tmp/app.zip" -d "$DIR/app.new"
+while read -r sum f; do
+  [ -n "$f" ] || continue
+  mkdir -p "$DIR/app.new/$(dirname "$f")"
+  curl -fsSL "$BASE/app/$f" -o "$DIR/app.new/$f" || fail "Could not download $f. Check your internet connection."
+  got="$( (shasum -a 1 "$DIR/app.new/$f" 2>/dev/null || sha1sum "$DIR/app.new/$f") | cut -d' ' -f1)"
+  [ "$got" = "$sum" ] || fail "$f did not download correctly. Please run the installer again."
+done <<< "$FILES"
 rm -rf "$DIR/app"; mv "$DIR/app.new" "$DIR/app"
 
 # Hand tracking (MediaPipe) supports Python 3.9 to 3.12.
