@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Airpane Desktop - control your computer with your hand</title>
+  <meta name="description" content="Point, pinch and swipe at your webcam to move the cursor, click, scroll and run shortcuts anywhere on your Mac. Set your own gesture rules." />
+  <meta name="theme-color" content="#07090f" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='7' width='22' height='16' rx='3' fill='none' stroke='%237cf5d3' stroke-width='2.5' transform='skewY(-8) translate(0 4)'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/desktop/desktop.css" />
+</head>
+<body>
+  <main id="landing" class="dk">
+    <header class="top"><a class="brand" href="/desktop/"><span class="mark" aria-hidden="true"></span>Airpane<span class="beta">Desktop</span></a></header>
+
+    <section class="dk-hero">
+      <div>
+        <h1>Control your computer<br /><span class="grad">with your hand.</span></h1>
+        <p class="lede">Point at your webcam to move the cursor. Pinch to click and drag, make a V to scroll, swipe to change desktops. Everything else is yours to set: any gesture, any shortcut.</p>
+        <div class="install">
+          <div class="install-label">Install on a Mac: open <b>Terminal</b>, paste this, press Return</div>
+          <div class="cmd"><code id="cmd">curl -fsSL https://airpane.anchit-tandon.com/desktop/install.sh | bash</code><button id="copy" class="btn-primary" type="button">Copy</button></div>
+          <p class="small muted">Free. Takes a minute or two. Needs macOS with Python 3.9 to 3.12 (the installer tells you if it is missing). Video never leaves your Mac.</p>
+        </div>
+      </div>
+      <figure class="shot"><img src="/desktop/settings.webp" width="1200" height="758" alt="Airpane Desktop settings: live camera view with the hand tracked, hand controls and gesture rules" /></figure>
+    </section>
+
+    <section class="how">
+      <div class="step"><span>1</span><h3>Install</h3><p>Paste the command above in Terminal. After that, start Airpane from the Applications folder in your home folder.</p></div>
+      <div class="step"><span>2</span><h3>Allow two things</h3><p>Camera (macOS asks) and Accessibility for Terminal in System Settings &gt; Privacy &amp; Security, so your hand can move the mouse.</p></div>
+      <div class="step"><span>3</span><h3>Point</h3><p>Sit about an arm's length away, raise your index finger and move. The settings page shows what the camera sees.</p></div>
+    </section>
+
+    <section class="dk-cols">
+      <div class="dk-card">
+        <h2>16 gestures out of the box</h2>
+        <table class="gt">
+          <tbody>
+            <tr><th>Index finger up, move</th><td>Move the cursor</td></tr>
+            <tr><th>Thumb touches index, quickly</th><td>Click</td></tr>
+            <tr><th>Thumb touches index, move</th><td>Drag</td></tr>
+            <tr><th>Thumb touches middle finger</th><td>Right click</td></tr>
+            <tr><th>V sign, move up or down</th><td>Scroll</td></tr>
+            <tr><th>Open hand, swipe left or right</th><td>Next or previous desktop</td></tr>
+            <tr><th>Open hand, swipe up or down</th><td>Mission Control or show desktop</td></tr>
+            <tr><th>Three fingers, hold</th><td>Switch app</td></tr>
+            <tr><th>Thumbs up, hold</th><td>Volume up</td></tr>
+            <tr><th>Thumbs down, hold</th><td>Volume down</td></tr>
+            <tr><th>Index and pinky up, hold</th><td>Play or pause</td></tr>
+            <tr><th>Only the pinky up, hold</th><td>Mute</td></tr>
+            <tr><th>Four fingers, thumb folded in</th><td>Screenshot</td></tr>
+            <tr><th>Fist, hold a second</th><td>Pause or resume Airpane</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="dk-card">
+        <h2>Your rules</h2>
+        <p class="muted">Every gesture above can be changed, and you can add your own on the settings page:</p>
+        <ul class="ticks">
+          <li><b>One gesture, one job</b>: 12 hand poses and 4 swipes, each doing exactly one thing, so nothing fires by accident</li>
+          <li><b>Any action</b>: clicks, scrolling, any keyboard shortcut, typing text, volume and music keys, Mission Control, desktops, screenshots, Spotlight</li>
+          <li><b>Timing</b>: how long to hold, repeat while held, cooldown between uses</li>
+          <li><b>Feel</b>: hand travel, steadiness, click speed, scroll speed and direction</li>
+          <li><b>Test mode</b>: see what each gesture would do without touching your computer</li>
+        </ul>
+        <h2 class="mt">Safe by design</h2>
+        <ul class="ticks">
+          <li>Hold a fist or press Ctrl + Alt + P to pause at any moment</li>
+          <li>The mouse button is released if your hand leaves the camera mid-drag</li>
+          <li>Runs entirely on your Mac; the settings page is only reachable from it</li>
+          <li>Never runs commands, only clicks and keys you choose</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="dk-card also">
+      <div><h2>Also from Airpane</h2><p class="muted">Show a website floating in the air with a phone and a clear sheet, controlled by the same hand gestures.</p></div>
+      <a class="btn-ghost" href="/">Open the floating browser</a>
+    </section>
+
+    <footer class="foot">Airpane Desktop 1.0 for macOS. Hand tracking by Google MediaPipe, running on your computer. Windows and Linux work from the source code (see the README in the download).</footer>
+  </main>
+  <script>
+    document.getElementById("copy").onclick = async (e) => {
+      const t = document.getElementById("cmd").textContent;
+      // Some browsers never answer a clipboard request (e.g. window not focused): don't wait forever.
+      const timeout = new Promise((_, no) => setTimeout(() => no(new Error("timeout")), 900));
+      try { await Promise.race([navigator.clipboard.writeText(t), timeout]); e.target.textContent = "Copied"; }
+      catch { const r = document.createRange(); r.selectNodeContents(document.getElementById("cmd")); getSelection().removeAllRanges(); getSelection().addRange(r); e.target.textContent = "Press Cmd+C"; }
+      setTimeout(() => (e.target.textContent = "Copy"), 2000);
+    };
+  </script>
+</body>
+</html>

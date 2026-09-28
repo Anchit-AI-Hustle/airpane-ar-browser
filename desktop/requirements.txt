@@ -1,0 +1,5 @@
+mediapipe>=0.10.14
+opencv-python>=4.8
+pynput>=1.7.6
+numpy
+certifi

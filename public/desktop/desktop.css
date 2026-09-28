@@ -1,0 +1,32 @@
+.dk h2 { font: 700 20px/1.2 var(--display); margin: 0 0 12px; letter-spacing: -0.01em; }
+.dk .muted { color: var(--muted); }
+.dk .small { font-size: 13px; line-height: 1.5; }
+.dk-hero { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 44px; align-items: center; padding: 36px 0 52px; }
+.dk-hero h1 { font: 700 clamp(36px, 5.4vw, 60px)/1.04 var(--display); letter-spacing: -0.03em; margin: 0 0 18px; }
+.install { border: 1px solid rgba(124, 245, 211, 0.3); background: rgba(124, 245, 211, 0.05); border-radius: 16px; padding: 16px; max-width: 560px; }
+.install-label { font-size: 14px; margin-bottom: 10px; }
+.cmd { display: flex; gap: 8px; align-items: stretch; }
+.cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; background: #03050a; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cfe; }
+.install .small { margin: 10px 0 0; }
+.shot { margin: 0; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(124, 245, 211, 0.08); }
+.shot img { display: block; width: 100%; height: auto; }
+.dk-cols { max-width: 1120px; margin: 18px auto 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.dk-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; background: rgba(255, 255, 255, 0.02); }
+.gt { width: 100%; border-collapse: collapse; font-size: 14px; }
+.gt th, .gt td { text-align: left; padding: 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.gt th { font-weight: 500; color: var(--ink); padding-right: 14px; }
+.gt td { color: var(--mint); }
+.gt tr:last-child th, .gt tr:last-child td { border-bottom: 0; }
+.ticks { margin: 0; padding-left: 18px; color: #c9d0e3; font-size: 14px; line-height: 1.75; }
+.ticks b { color: var(--ink); }
+.mt { margin-top: 22px !important; }
+.also { max-width: 1120px; margin: 16px auto 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.also h2 { margin-bottom: 4px; }
+.also p { margin: 0; }
+.btn-ghost { display: inline-flex; border: 1px solid rgba(124, 245, 211, 0.45); color: var(--mint); text-decoration: none; border-radius: 10px; padding: 11px 16px; font-weight: 600; }
+.btn-ghost:hover { background: rgba(124, 245, 211, 0.08); }
+@media (max-width: 860px) {
+  .dk-hero, .dk-cols { grid-template-columns: 1fr; }
+  .dk-hero { padding-top: 16px; gap: 28px; }
+  .cmd { flex-direction: column; }
+}

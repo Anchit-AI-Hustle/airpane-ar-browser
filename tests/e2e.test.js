@@ -10,7 +10,7 @@ const innerWidthOf = (page) => page.viewportSize().width;
 let pass = 0, fail = 0;
 async function t(name, fn) {
   try { await fn(); pass++; console.log("ok  ", name); }
-  catch (e) { fail++; console.error("FAIL", name, "\n   ", e.message.split("\n")[0]); }
+  catch (e) { fail++; console.error("FAIL", name, "\n   ", e.message.split("\n").slice(0, 8).join("\n    ")); }
 }
 
 (async () => {
@@ -562,6 +562,52 @@ async function t(name, fn) {
     await t("glass + controller: zero console errors", async () => { assert.deepEqual(disp.__errors, []); assert.deepEqual(ctl.__errors, []); });
     await dctx.close(); await cctx.close(); await ctlBrowser.close();
     try { peerSrv.close && peerSrv.close(); peerSrv._server && peerSrv._server.close(); } catch {}
+  }
+
+  // ---------- Airpane Desktop page ----------
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["clipboard-read", "clipboard-write"] });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+    await t("home: links to Airpane Desktop", async () => {
+      await page.goto(BASE + "/", { waitUntil: "load" });
+      await page.click(".promo");
+      await page.waitForURL(/\/desktop\/$/);
+    });
+    await t("desktop page: install command, copy button and screenshot", async () => {
+      assert.equal(await page.textContent("#cmd"), "curl -fsSL https://airpane.anchit-tandon.com/desktop/install.sh | bash");
+      await page.bringToFront();
+      await page.click("#copy");
+      await page.waitForFunction(() => document.getElementById("copy").textContent !== "Copy", null, { timeout: 3000 });
+      const label = await page.textContent("#copy");
+      const CMD = "curl -fsSL https://airpane.anchit-tandon.com/desktop/install.sh | bash";
+      // If the browser blocks the clipboard, the command is selected for Cmd+C instead.
+      if (label === "Copied") assert.equal(await page.evaluate(() => navigator.clipboard.readText()), CMD, "clipboard");
+      else assert.equal([label, await page.evaluate(() => String(getSelection()))].join("|"), "Press Cmd+C|" + CMD, "fallback selects the command");
+      await page.waitForFunction(() => document.querySelector(".shot img").complete);
+      assert.equal(await page.evaluate(() => document.querySelector(".shot img").naturalWidth), 1200, "screenshot image");
+      await page.screenshot({ path: `${SHOTS}/desktop-page.png`, fullPage: true });
+    });
+    await t("desktop page: installer and app download are served", async () => {
+      const sh = await (await fetch(BASE + "/desktop/install.sh")).text();
+      assert.ok(sh.startsWith("#!/usr/bin/env bash") && sh.includes("airpane-desktop.zip"));
+      const z = await fetch(BASE + "/desktop/airpane-desktop.zip");
+      assert.equal(z.status, 200);
+      const buf = Buffer.from(await z.arrayBuffer());
+      assert.equal(buf.slice(0, 2).toString(), "PK");
+      assert.ok(buf.length > 10000);
+    });
+    await t("desktop page: fits a phone", async () => {
+      const m = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await m.goto(BASE + "/desktop/", { waitUntil: "load" });
+      assert.ok((await m.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0);
+      await m.screenshot({ path: `${SHOTS}/desktop-page-phone.png`, fullPage: true });
+      await m.close();
+    });
+    await t("desktop page: zero console errors", async () => assert.deepEqual(errors, []));
+    await ctx.close();
   }
 
   await browser.close();

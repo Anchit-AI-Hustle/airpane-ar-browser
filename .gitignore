@@ -1,3 +1,6 @@
 node_modules/
 tests/shots/
 .vercel
+__pycache__/
+*.pyc
+desktop/tests/ui-*.png
