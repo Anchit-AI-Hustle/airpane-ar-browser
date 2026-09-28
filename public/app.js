@@ -432,7 +432,7 @@ const HELP = {
   },
   glass: {
     hint: "Lean the clear sheet over the screen. Pair your laptop to control it by hand.",
-    steps: `<li>Lay this phone or iPad flat, screen up, brightness high, with its long side facing you.</li>
+    steps: `<li>Lay this phone or iPad flat, screen up, brightness high, with the bottom edge of the screen towards you. Lock screen rotation first.</li>
       <li>Lean a clear acrylic sheet (or a glass photo frame without its back) over it at about <b>45°</b>: bottom edge on the far side of the screen, top edge rising towards you.</li>
       <li>Dim the room and sit so your eyes are level with the sheet. The page stands in the air behind it.</li>
       <li>On your laptop open <b>airpane.anchit-tandon.com/control</b> and type the code shown here. Point at the webcam to move the cursor, pinch to click, pinch and move up or down to scroll.</li>`,
