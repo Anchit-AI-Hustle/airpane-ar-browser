@@ -2,6 +2,7 @@ import {
   deg, clamp, quat, quatFromEulerYXZ, quatNlerp, rotate, deviceQuat,
   scale, norm, matFacing, applyMat, viewMatrix, cameraCSS, objectCSS,
 } from "./math3d.js";
+import { createHolo } from "./holo.js";
 
 const $ = (id) => document.getElementById(id);
 const landing = $("landing"), ar = $("ar"), cam = $("cam"), stage = $("stage");
@@ -56,6 +57,17 @@ let panelEl, frameHost, stateEl;
 let camQ = quat();          // where the phone is looking
 let panelPos = [0, 0, -1000]; // panel centre in the room (camera at origin)
 let dist = 1000, running = false, placed = false, ready = false;
+// "holo": laptop/desktop, the camera tracks your head and the page floats in front
+// of the screen. "room": phone, the back camera shows the room and the page is
+// pinned in it.
+let view = "room", holo = null;
+const viewBtn = $("view-btn"), trackEl = $("track");
+
+export function pickView() {
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const small = Math.min(screen.width, screen.height) < 900;
+  return coarse && small ? "room" : "holo";
+}
 
 function render() {
   const fovPx = innerHeight / 2 / Math.tan(deg(FOV / 2));
@@ -78,6 +90,7 @@ function initScene() {
   stateEl.className = "panel-state";
   panelEl.append(frameHost, stateEl);
   stage.appendChild(panelEl);
+  holo = createHolo({ stage, panel: panelEl, video: cam, onStatus: onHoloStatus });
   addEventListener("resize", onResize);
   addEventListener("orientationchange", () => setTimeout(onResize, 300));
 }
@@ -109,12 +122,14 @@ function onResize() {
 }
 
 function zoom(f) {
+  if (view === "holo") return holo.zoom(f);
   dist = clamp(dist * f, 350, 5000);
   panelPos = scale(norm(panelPos), dist);
 }
 
 function loop() {
   if (!running) return;
+  if (view === "holo") { holo.frame(performance.now(), panelSize()); requestAnimationFrame(loop); return; }
   camQ = gyro.active ? quatNlerp(camQ, gyro.target, 0.5) : quatFromEulerYXZ(look.pitch, look.yaw, 0);
   render();
   requestAnimationFrame(loop);
@@ -126,6 +141,7 @@ function onOrientation(e) {
   if (e.alpha == null || e.beta == null) return;
   const angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
   gyro.target = deviceQuat(e.alpha, e.beta, e.gamma || 0, angle);
+  if (view !== "room") return;
   if (!gyro.active) {
     gyro.active = true;
     camQ = gyro.target;
@@ -144,7 +160,7 @@ function requestOrientation() {
 // Drag-to-look fallback (desktop, or phones without motion sensors).
 const look = { yaw: 0, pitch: 0, drag: null };
 stage.addEventListener("pointerdown", (e) => {
-  if (gyro.active || e.target.closest(".panel")) return;
+  if (view !== "room" || gyro.active || e.target.closest(".panel")) return;
   look.drag = { x: e.clientX, y: e.clientY, yaw: look.yaw, pitch: look.pitch };
   stage.setPointerCapture(e.pointerId);
 });
@@ -158,10 +174,11 @@ stage.addEventListener("pointercancel", () => (look.drag = null));
 
 // ---------- camera feed ----------
 let stream = null;
-async function startCamera() {
+async function startCamera(facing = "environment") {
   try {
+    const small = facing === "user";
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: { facingMode: { ideal: facing }, width: { ideal: small ? 640 : 1280 }, height: { ideal: small ? 480 : 720 } },
       audio: false,
     });
     cam.srcObject = stream;
@@ -302,8 +319,9 @@ document.addEventListener("click", (e) => {
 async function enterAR(raw) {
   if (running) return loadURL(raw);
   launchBtn.disabled = true;
-  const orientP = requestOrientation(); // must be first call inside the tap on iPhone
-  const camP = startCamera();
+  view = pickView();
+  const orientP = view === "room" ? requestOrientation() : Promise.resolve(false); // first call inside the tap on iPhone
+  const camP = startCamera(view === "holo" ? "user" : "environment");
   const [, camOk] = await Promise.all([orientP, camP]);
   launchBtn.disabled = false;
 
@@ -315,18 +333,50 @@ async function enterAR(raw) {
   look.yaw = 0; look.pitch = 0;
   camQ = quat();
   running = true;
-  placePanel();
+  applyView(camOk);
   addEventListener("deviceorientation", onOrientation);
   requestAnimationFrame(loop);
-
-  if (!camOk) toast("Camera is off. Showing a virtual room instead.");
-  setTimeout(() => { if (!gyro.active) hint("Drag the background to look around."); }, 1200);
   history.replaceState({ ar: 0 }, "");
   loadURL(raw);
 }
 
+function applyView(camOk) {
+  ar.classList.toggle("holo", view === "holo");
+  viewBtn.textContent = view === "holo" ? "Hologram" : "Camera room";
+  viewBtn.setAttribute("aria-label", "3D view: " + viewBtn.textContent + ". Switch view");
+  trackEl.hidden = true;
+  stage.style.perspectiveOrigin = "";
+  placePanel();
+  if (view === "holo") {
+    holo.start();
+    hint(camOk ? "Move your head. The page floats in front of your screen." : "Move the mouse to look around the page in 3D.", 6000);
+    if (!camOk) toast("Camera is off, so head tracking is off. Using the mouse instead.");
+  } else {
+    holo.stop();
+    if (!camOk) toast("Camera is off. Showing a virtual room instead.");
+    setTimeout(() => { if (view === "room" && !gyro.active) hint("Drag the background to look around."); }, 1200);
+  }
+}
+
+function onHoloStatus(st) {
+  if (view !== "holo") return;
+  trackEl.hidden = st !== "tracking";
+  if (st === "tracking") hint("Head tracking on. Lean left and right.", 3500);
+}
+
+async function switchView() {
+  view = view === "holo" ? "room" : "holo";
+  stopCamera();
+  gyro.active = false; look.yaw = 0; look.pitch = 0; camQ = quat();
+  if (view === "room") await requestOrientation();
+  const ok = await startCamera(view === "holo" ? "user" : "environment");
+  applyView(ok);
+}
+
 function exitAR() {
   running = false;
+  if (holo) holo.stop();
+  ar.classList.remove("holo");
   removeEventListener("deviceorientation", onOrientation);
   stopCamera();
   destroyCloud();
@@ -356,7 +406,8 @@ $("exit-btn").addEventListener("click", () => { exitAR(); history.replaceState(n
 $("back-btn").addEventListener("click", () => history.back());
 $("zoom-in").addEventListener("click", () => zoom(0.85));
 $("zoom-out").addEventListener("click", () => zoom(1.18));
-$("recenter-btn").addEventListener("click", () => { if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
+viewBtn.addEventListener("click", switchView);
+$("recenter-btn").addEventListener("click", () => { if (view === "holo") return holo.recenter(); if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
 
 // Test hook (no effect for users).
-window.__airpane = { normalizeInput, get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent }; } };
+window.__airpane = { normalizeInput, get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state }; } };

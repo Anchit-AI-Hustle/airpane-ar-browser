@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/holo.css" />
 </head>
 <body>
   <!-- LANDING -->
@@ -22,7 +23,7 @@
     <section class="hero">
       <div class="copy">
         <h1>Open any website<br /><span class="grad">in the air.</span></h1>
-        <p class="lede">Point your phone at the room and the web floats in front of you. Tap, scroll and type like normal. No app, no headset.</p>
+        <p class="lede">On a phone, the page floats in your room. On a laptop, the camera follows your head so the page hangs in 3D in front of the screen. Tap, scroll and type like normal. No app, no glasses.</p>
 
         <form id="launch-form" class="launch" autocomplete="off">
           <label class="sr" for="launch-input">Search or type a URL</label>
@@ -40,7 +41,7 @@
 
         <ul class="notes">
           <li>Camera stays on your device. Nothing is recorded.</li>
-          <li>Best on Android Chrome and iPhone Safari.</li>
+          <li>Works in Chrome, Safari and Edge on phones and laptops.</li>
         </ul>
       </div>
 
@@ -61,8 +62,8 @@
 
     <section class="how">
       <div class="step"><span>1</span><h3>Open a link</h3><p>Type a site or search. Nothing to install.</p></div>
-      <div class="step"><span>2</span><h3>Allow the camera</h3><p>Your room becomes the background.</p></div>
-      <div class="step"><span>3</span><h3>Use it in the air</h3><p>The page stays put as you move. Tap and scroll it directly.</p></div>
+      <div class="step"><span>2</span><h3>Allow the camera</h3><p>Phone: your room becomes the background. Laptop: it tracks your head.</p></div>
+      <div class="step"><span>3</span><h3>Use it in the air</h3><p>Move and the page holds its place in 3D. Tap and scroll it directly.</p></div>
     </section>
 
     <footer class="foot">Airpane is an early beta. Some sites block being shown inside other apps; those open in Cloud mode when it's available.</footer>
@@ -76,6 +77,8 @@
     <div class="hud-top">
       <span id="mode-chip" class="mode">Direct</span>
       <span id="status" class="status" role="status" aria-live="polite"></span>
+      <span id="track" class="track" hidden><i></i>Head tracking</span>
+      <button id="view-btn" class="view-btn" type="button">Hologram</button>
       <button id="exit-btn" class="icon-btn" aria-label="Exit">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>

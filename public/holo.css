@@ -1,0 +1,23 @@
+/* ---------- Hologram view (laptop / desktop) ---------- */
+#ar.holo { background: radial-gradient(1400px 900px at 50% 45%, #0f1a33, #04060b 75%); }
+#ar.holo #cam { inset: auto auto calc(env(safe-area-inset-bottom) + 84px) 12px; width: 132px; height: 99px; border-radius: 12px; transform: scaleX(-1); opacity: 0.85; z-index: 3; border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+#ar.holo.no-cam #cam { display: none; }
+.holo-plane, .holo-shadow, .holo-dot { position: absolute; left: 50%; top: 50%; backface-visibility: visible; pointer-events: none; }
+.holo-plane {
+  background-color: rgba(10, 18, 36, 0.55);
+  background-image: linear-gradient(rgba(124, 245, 211, 0.24) 1px, transparent 1px), linear-gradient(90deg, rgba(124, 245, 211, 0.24) 1px, transparent 1px);
+  background-size: 120px 120px;
+  box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.65);
+}
+.holo-back { background-color: rgba(8, 14, 30, 0.9); box-shadow: inset 0 0 220px rgba(124, 245, 211, 0.07); }
+.holo-floor { background-color: rgba(12, 22, 44, 0.7); }
+.holo-shadow { border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0)); filter: blur(6px); }
+.holo-dot { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #d8fff3, var(--mint) 45%, rgba(124, 245, 211, 0) 72%); box-shadow: 0 0 24px rgba(124, 245, 211, 0.55); }
+#stage.holo .panel { box-shadow: 0 0 0 1px rgba(124, 245, 211, 0.55), 0 40px 120px rgba(0, 0, 0, 0.7), 0 0 90px rgba(124, 245, 211, 0.22); }
+.view-btn { flex: none; font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 99px; background: var(--glass); border: 1px solid var(--line); color: #e8ecf7; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.view-btn::before { content: "3D view: "; color: var(--muted); font-weight: 500; }
+.track { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--mint); padding: 6px 10px; border-radius: 99px; background: var(--glass); border: 1px solid rgba(124, 245, 211, 0.35); }
+.track[hidden] { display: none; }
+.track i { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 8px var(--mint); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (max-width: 560px) { .view-btn::before { content: ""; } #ar.holo #cam { width: 96px; height: 72px; } }

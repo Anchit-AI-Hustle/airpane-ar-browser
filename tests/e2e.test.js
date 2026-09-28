@@ -19,9 +19,15 @@ async function t(name, fn) {
     for (let i = 0; i < 40; i++) { try { await fetch(BASE); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
   }
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "<-loopback>,localhost,127.0.0.1" } : undefined;
+  // Fake webcam: a real portrait that slides left and right, so head tracking has a face to follow.
+  const FACE = "/tmp/airpane-face-moving.y4m";
+  if (!require("node:fs").existsSync(FACE)) {
+    const img = "/tmp/airpane-face.jpg";
+    require("node:child_process").execSync(`curl -s -o ${img} https://storage.googleapis.com/mediapipe-assets/portrait.jpg && ffmpeg -loglevel error -y -loop 1 -i ${img} -vf "scale=1300:-1,crop=640:480:'330+220*sin(2*PI*t/4)':60,format=yuv420p" -t 8 -r 15 ${FACE}`);
+  }
   const browser = await chromium.launch({
     proxy,
-    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${FACE}`, "--autoplay-policy=no-user-gesture-required", "--enable-unsafe-swiftshader"],
   });
 
   for (const [label, ctxOpts] of [
@@ -75,14 +81,35 @@ async function t(name, fn) {
     });
 
     await t(`${label}: page inside the panel is interactive (tap a link)`, async () => {
+      // Project the link's real position through the panel's 3D transform the same way
+      // the browser renders it, then do a real mouse click at that screen point. If the
+      // page navigates, taps land exactly where the user sees the link.
       const frame = page.frames().find((f) => /wikipedia/.test(f.url()));
       const before = frame.url();
-      const link = page.frameLocator(".panel iframe").locator('p a[href$="/wiki/Virtual_reality"]').first();
-      await link.click({ timeout: 15000 });
-      await page.waitForFunction((b) => [...document.querySelectorAll(".panel iframe")].some(() => true) && b, before);
+      const c = await frame.evaluate(() => {
+        const a = document.querySelector('p a[href$="/wiki/Virtual_reality"]');
+        a.scrollIntoView({ block: "center" });
+        const r = a.getBoundingClientRect();
+        return { x: r.left + Math.min(12, r.width / 2), y: r.top + r.height / 2 };
+      });
+      await page.waitForTimeout(300);
+      const pt = await page.evaluate(({ x, y }) => {
+        const stage = document.getElementById("stage"), panel = document.querySelector(".panel");
+        const cs = getComputedStyle(stage), ps = getComputedStyle(panel);
+        const d = parseFloat(cs.perspective);
+        const [ox, oy] = cs.perspectiveOrigin.split(" ").map(parseFloat);
+        const w = panel.offsetWidth, h = panel.offsetHeight;
+        const m = new DOMMatrix()
+          .translate(ox, oy).multiply(new DOMMatrix([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1 / d, 0, 0, 0, 1])).translate(-ox, -oy)
+          .translate(panel.offsetLeft + w / 2, panel.offsetTop + h / 2).multiply(new DOMMatrix(ps.transform)).translate(-w / 2, -h / 2);
+        const q = m.transformPoint(new DOMPoint(x, y, 0, 1));
+        return { x: q.x / q.w, y: q.y / q.w };
+      }, c);
+      await page.mouse.click(pt.x, pt.y);
       await page.waitForTimeout(3000);
       const after = page.frames().find((f) => /wikipedia/.test(f.url())).url();
-      assert.notEqual(after, before, "link click did not navigate");
+      assert.notEqual(after, before, `link click at ${pt.x.toFixed(0)},${pt.y.toFixed(0)} did not navigate`);
+      assert.match(after, /Virtual_reality/);
     });
 
     await t(`${label}: blocked site shows the clear Cloud-mode message`, async () => {
@@ -94,7 +121,9 @@ async function t(name, fn) {
     });
 
     await t(`${label}: quick link on the blocked card recovers`, async () => {
-      await page.click(".panel-state .chip >> text=Live map");
+      // force: the floating page never stops moving, so skip the "stable" wait.
+      // It is still a real mouse click at the button's on-screen position.
+      await page.click(".panel-state .chip >> text=Live map", { force: true });
       await page.waitForFunction(() => document.querySelector(".panel-state")?.hidden === true, null, { timeout: 30000 });
       assert.match(await page.getAttribute(".panel iframe", "src"), /openstreetmap/);
     });
@@ -140,13 +169,42 @@ async function t(name, fn) {
         await fire(0); await page.waitForTimeout(300); await page.click("#recenter-btn");
       });
     } else {
-      await t("desktop: drag background to look around", async () => {
-        const r0 = await page.locator(".panel").boundingBox();
-        await page.mouse.move(40, 450); await page.mouse.down(); await page.mouse.move(200, 450, { steps: 8 }); await page.mouse.up();
-        await page.waitForTimeout(300);
-        const r1 = await page.locator(".panel").boundingBox();
-        assert.ok(Math.abs(r1.x - r0.x) > 50, "drag did not rotate view");
-        await page.click("#recenter-btn");
+      await t("desktop: opens in Hologram view with a 3D room behind the screen", async () => {
+        const st = await page.evaluate(() => window.__airpane.state);
+        assert.equal(st.view, "holo");
+        assert.equal(await page.locator(".holo-plane").count(), 5);
+        assert.match(await page.textContent("#view-btn"), /Hologram/);
+        const z = await page.evaluate(() => /translate3d\([^,]+,[^,]+,\s*(-?[\d.]+)px\)/.exec(document.querySelector(".panel").style.transform)[1]);
+        assert.ok(Number(z) > 0, "page should float in front of the screen, z=" + z);
+      });
+      await t("desktop: webcam head tracking finds the face and moves the viewpoint", async () => {
+        await page.waitForFunction(() => window.__airpane.state.holo.tracking, null, { timeout: 40000 });
+        assert.equal(await page.isVisible("#track"), true);
+        const xs = [], boxes = [];
+        for (let i = 0; i < 16; i++) {
+          xs.push(await page.evaluate(() => window.__airpane.state.holo.eye.x));
+          boxes.push((await page.locator(".panel").boundingBox()).x);
+          if (i === 4) await page.screenshot({ path: `${SHOTS}/desktop-4-holo-a.png` });
+          if (i === 12) await page.screenshot({ path: `${SHOTS}/desktop-4-holo-b.png` });
+          await page.waitForTimeout(250);
+        }
+        const range = Math.max(...xs) - Math.min(...xs);
+        assert.ok(range > 150, "eye barely moved: " + range.toFixed(0));
+        const backShift = await page.evaluate(() => document.getElementById("stage").style.perspectiveOrigin);
+        assert.match(backShift, /px/);
+        // The page sits in front of the glass, so it moves the opposite way to the room behind.
+        assert.ok(Math.max(...boxes) - Math.min(...boxes) > 3, "page did not respond to head movement");
+      });
+      await t("desktop: view switch goes to camera room and back", async () => {
+        await page.click("#view-btn");
+        await page.waitForFunction(() => document.getElementById("view-btn").textContent === "Camera room");
+        assert.equal(await page.locator(".holo-plane").count(), 0);
+        await page.waitForTimeout(500);
+        const r = await page.locator(".panel").boundingBox();
+        assert.ok(r && r.width > 300, "panel missing in room view");
+        await page.click("#view-btn");
+        await page.waitForFunction(() => document.getElementById("view-btn").textContent === "Hologram");
+        await page.waitForTimeout(600);
       });
     }
 
