@@ -44,7 +44,7 @@ $("pair-form").addEventListener("submit", async (e) => {
 function onState(m) {
   if (!m || m.t !== "state") return;
   $("now-title").textContent = m.loading ? "Opening..." : m.error ? "Could not open: " + m.error : (m.title || "Connected");
-  $("now-hover").textContent = m.hover ? "Pinch to open: " + m.hover : "Point at a link on the floating page";
+  $("now-hover").textContent = m.hover ? "Make a fist to open: " + m.hover : "Move the cursor onto a link on the floating page";
   mirror(m);
 }
 
@@ -116,6 +116,7 @@ $("go-form").addEventListener("submit", (e) => {
   $("go-url").blur();
 });
 $("back").addEventListener("click", () => send({ t: "back" }));
+$("forward").addEventListener("click", () => send({ t: "forward" }));
 $("smaller").addEventListener("click", () => send({ t: "size", up: false }));
 $("bigger").addEventListener("click", () => send({ t: "size", up: true }));
 $("hands").addEventListener("click", () => {
@@ -129,7 +130,8 @@ addEventListener("keydown", (e) => {
   if (!link || e.target.tagName === "INPUT") return;
   if (e.key === "ArrowDown" || e.key === "PageDown") { send({ t: "scroll", dy: e.key === "PageDown" ? 0.8 : 0.15 }); e.preventDefault(); }
   if (e.key === "ArrowUp" || e.key === "PageUp") { send({ t: "scroll", dy: e.key === "PageUp" ? -0.8 : -0.15 }); e.preventDefault(); }
-  if (e.key === "Backspace") { send({ t: "back" }); e.preventDefault(); }
+  if (e.key === "Backspace" || e.key === "ArrowLeft") { send({ t: "back" }); e.preventDefault(); }
+  if (e.key === "ArrowRight") { send({ t: "forward" }); e.preventDefault(); }
 });
 
 // Trackpad area: the pad maps 1:1 onto the floating page.
@@ -195,12 +197,12 @@ function tick(now) {
     else if (ev.t === "scroll") { send(ev); S.events.scroll++; }
     else if (ev.t === "lost") { send(ev); lastCur = null; padCur.hidden = true; }
     else if (ev.t === "back") { send({ t: "back" }); S.events.back = (S.events.back || 0) + 1; flash("Back"); }
+    else if (ev.t === "forward") { send({ t: "forward" }); S.events.forward = (S.events.forward || 0) + 1; flash("Forward"); }
     else if (ev.t === "size") { send({ t: "size", up: ev.up }); flash(ev.up ? "Text bigger" : "Text smaller"); }
-    else if (ev.t === "pause") { flash(ev.value ? "Paused: hold a fist to resume" : "Resumed"); }
   }
   const g = gestures.state;
   S.pinched = g.pinched; S.pose = g.pose; S.paused = g.paused;
-  $("gesture").textContent = !lm ? "No hand in view" : g.paused ? "Paused (hold a fist to resume)" : (POSES[g.pose] || "Hand seen");
+  $("gesture").textContent = !lm ? "No hand in view" : (POSES[g.pose] || "Hand seen");
 }
 
 let flashT = null;

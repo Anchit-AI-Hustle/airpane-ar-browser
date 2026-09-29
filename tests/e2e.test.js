@@ -399,7 +399,7 @@ async function t(name, fn) {
       assert.ok(over <= 0, "template overflows on phone: " + over);
     });
 
-    await t("pyramid: zero console errors", async () => assert.deepEqual(errors, []));
+    await t("pyramid: zero console errors", async () => assert.deepEqual(errors, [], JSON.stringify(errors)));
     await ctx.close();
   }
 
@@ -410,9 +410,9 @@ async function t(name, fn) {
     const { PeerServer } = require("peer");
     const peerSrv = await new Promise((ok) => { const srv = PeerServer({ port: 9123, host: "127.0.0.1", path: "/" }, () => ok(srv)); });
     const PQ = "?peer=127.0.0.1:9123";
-    const HAND = "/tmp/airpane-hand.y4m";
+    const HAND = "/tmp/airpane-open-hand.y4m"; // a still open hand: it drives the cursor
     if (!require("node:fs").existsSync(HAND)) {
-      require("node:child_process").execSync(`curl -s -o /tmp/airpane-hand.jpg https://storage.googleapis.com/mediapipe-assets/pointing_up.jpg && ffmpeg -loglevel error -y -loop 1 -i /tmp/airpane-hand.jpg -vf "scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2,format=yuv420p" -t 6 -r 15 ${HAND}`);
+      require("node:child_process").execSync(`ffmpeg -loglevel error -y -loop 1 -i ${require("node:path").join(__dirname, "../desktop/tests/fixtures/open_palm.jpg")} -vf "scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2,format=yuv420p" -t 6 -r 15 ${HAND}`);
     }
     const ctlBrowser = await chromium.launch({
       proxy,
@@ -493,16 +493,22 @@ async function t(name, fn) {
       await ctl.mouse.move(pad.x + L.x * pad.width, pad.y + L.y * pad.height, { steps: 4 });
       await disp.waitForFunction(() => document.querySelector(".g-link.hover"), null, { timeout: 10000 });
       assert.equal(await disp.isVisible(".g-cursor"), true);
-      await ctl.waitForFunction(() => /Pinch to open/.test(document.getElementById("now-hover").textContent), null, { timeout: 10000 });
+      await ctl.waitForFunction(() => /Make a fist to open/.test(document.getElementById("now-hover").textContent), null, { timeout: 10000 });
       await disp.screenshot({ path: `${SHOTS}/glass-2-hover.png` });
     });
 
-    await t("controller: clicking opens the link on the floating page, Back returns", async () => {
+    await t("controller: clicking opens the link on the floating page, Back returns, Forward goes again", async () => {
       const before = (await G()).url;
       const L = await linkPoint();
       await ctl.locator("#pad").scrollIntoViewIfNeeded(); const pad = await ctl.locator("#pad").boundingBox();
       await ctl.mouse.click(pad.x + L.x * pad.width, pad.y + L.y * pad.height);
       await disp.waitForFunction((b) => window.__airpane.state.glass.url !== b && !window.__airpane.state.glass.loading, before, { timeout: 30000 });
+      const opened = (await G()).url;
+      await ctl.click("#back");
+      await disp.waitForFunction((b) => window.__airpane.state.glass.url === b && !window.__airpane.state.glass.loading, before, { timeout: 30000 });
+      assert.equal((await G()).canForward, true, "forward should be available after going back");
+      await ctl.click("#forward");
+      await disp.waitForFunction((o) => window.__airpane.state.glass.url === o && !window.__airpane.state.glass.loading, opened, { timeout: 30000 });
       await ctl.click("#back");
       await disp.waitForFunction((b) => window.__airpane.state.glass.url === b && !window.__airpane.state.glass.loading, before, { timeout: 30000 });
     });

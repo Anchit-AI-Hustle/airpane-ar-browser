@@ -31,7 +31,7 @@
     <section id="panel" class="ctl-panel" hidden>
       <div class="now card">
         <div class="now-row"><span class="dot"></span><span id="now-title">Connected</span></div>
-        <div id="now-hover" class="muted small">Point at a link on the floating page</div>
+        <div id="now-hover" class="muted small">Move the cursor onto a link on the floating page</div>
         <form id="go-form" class="go" autocomplete="off">
           <label class="sr" for="go-url">Open a site</label>
           <input id="go-url" type="text" inputmode="url" placeholder="Open a site or search" />
@@ -39,6 +39,7 @@
         </form>
         <div class="row">
           <button id="back" class="chip" type="button">Back</button>
+          <button id="forward" class="chip" type="button">Forward</button>
           <button id="smaller" class="chip" type="button">Text -</button>
           <button id="bigger" class="chip" type="button">Text +</button>
           <button id="hands" class="chip on" type="button" aria-pressed="true">Hand control: on</button>
@@ -54,12 +55,11 @@
           </div>
           <div id="gesture-flash" class="gesture-flash" hidden></div>
           <ul class="howto">
-            <li><b>Point with your index finger</b>: move the cursor</li>
-            <li><b>Pinch thumb and index</b>: click</li>
-            <li><b>Open hand, move up or down</b>: scroll</li>
-            <li><b>Open hand, flick left</b>: go back</li>
+            <li><b>Open hand, move it</b>: move the cursor</li>
+            <li><b>Close into a fist</b>: click</li>
+            <li><b>Index finger up, move up / down</b>: scroll up / down</li>
+            <li><b>Index finger, flick left / right</b>: back / forward</li>
             <li><b>Thumbs up / down</b>: bigger / smaller text</li>
-            <li><b>Fist, hold a second</b>: pause or resume</li>
           </ul>
           <div id="gesture" class="gesture muted small">No hand in view</div>
         </div>
@@ -70,7 +70,7 @@
             <div id="pad-empty" class="pad-empty">Waiting for the page</div>
             <div id="pad-cursor" class="pad-cursor" hidden></div>
           </div>
-          <p class="muted small">Keys: arrows scroll, Backspace goes back.</p>
+          <p class="muted small">Keys: up / down arrows scroll, left / right go back / forward.</p>
         </div>
       </div>
     </section>

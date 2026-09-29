@@ -29,14 +29,14 @@ export function createGlass(root, { onState } = {}) {
     </div>`;
   const flip = root.querySelector(".g-flip"), doc = root.querySelector(".g-doc");
   const content = root.querySelector(".g-content"), cursorEl = root.querySelector(".g-cursor");
-  const s = { on: false, url: "", title: "", y: 0, cur: null, hover: null, history: [], loading: false, error: "" };
+  const s = { on: false, url: "", title: "", y: 0, cur: null, hover: null, history: [], fwd: [], loading: false, error: "" };
 
   const maxY = () => Math.max(0, content.scrollHeight - doc.clientHeight);
   const applyScroll = () => { s.y = Math.min(maxY(), Math.max(0, s.y)); content.style.transform = `translateY(${-s.y}px)`; updateHover(); };
   // Layout the laptop needs to draw an exact mirror of this page: the page box
   // size and the computed text size and padding (these depend on this screen).
   const layout = () => { const cs = getComputedStyle(content); return { w: doc.clientWidth, h: doc.clientHeight, fs: parseFloat(cs.fontSize) || 20, pad: cs.padding }; };
-  const state = () => ({ url: s.url, title: s.title, y: s.y, max: maxY(), hover: s.hover ? s.hover.textContent : "", loading: s.loading, error: s.error, canBack: s.history.length > 0, view: layout() });
+  const state = () => ({ url: s.url, title: s.title, y: s.y, max: maxY(), hover: s.hover ? s.hover.textContent : "", loading: s.loading, error: s.error, canBack: s.history.length > 0, canForward: s.fwd.length > 0, view: layout() });
   const emit = () => onState && onState(state());
   let resizeT = null;
   // Screen rotation, window size or text size changes: tell the laptop the new layout.
@@ -72,7 +72,7 @@ export function createGlass(root, { onState } = {}) {
 
   async function load(url, { push = true } = {}) {
     if (!url) return;
-    if (push && s.url) s.history.push({ url: s.url, y: s.y });
+    if (push && s.url) { s.history.push({ url: s.url, y: s.y }); s.fwd = []; }
     s.loading = true; s.error = ""; emit();
     content.innerHTML = `<p class="g-wait">Opening ${esc(url.replace(/^https?:\/\//, "").slice(0, 60))}</p>`;
     s.y = 0; applyScroll();
@@ -95,7 +95,8 @@ export function createGlass(root, { onState } = {}) {
     start() { s.on = true; root.hidden = false; },
     stop() { s.on = false; root.hidden = true; },
     load,
-    back() { const h = s.history.pop(); if (h) load(h.url, { push: false }).then(() => { s.y = h.y; applyScroll(); }); },
+    back() { const h = s.history.pop(); if (!h) return; if (s.url) s.fwd.push({ url: s.url, y: s.y }); load(h.url, { push: false }).then(() => { s.y = h.y; applyScroll(); }); },
+    forward() { const f = s.fwd.pop(); if (!f) return; if (s.url) s.history.push({ url: s.url, y: s.y }); load(f.url, { push: false }).then(() => { s.y = f.y; applyScroll(); }); },
     // x, y in 0..1 of the page as the viewer sees it (top-left = 0,0).
     cursor(x, y) {
       s.cur = { x, y };

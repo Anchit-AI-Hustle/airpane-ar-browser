@@ -434,7 +434,7 @@ const HELP = {
     steps: `<li>Lay this phone or iPad flat, screen up, brightness high, with the bottom edge of the screen towards you. Lock screen rotation first.</li>
       <li>Lean a clear acrylic sheet (or a glass photo frame without its back) over it at about <b>45°</b>: bottom edge on the far side of the screen, top edge rising towards you.</li>
       <li>Dim the room and sit so your eyes are level with the sheet. The page stands in the air behind it.</li>
-      <li>On your laptop open <b>airpane.anchit-tandon.com/control</b> and type the code shown here. Point with your index finger to move the cursor, pinch to click, move an open hand up or down to scroll, flick an open hand left to go back.</li>`,
+      <li>On your laptop open <b>airpane.anchit-tandon.com/control</b> and type the code shown here. Move an open hand to move the cursor, close it into a fist to click, move your index finger up or down to scroll, flick it left to go back or right to go forward.</li>`,
   },
 };
 function showHelp() {
@@ -466,7 +466,7 @@ async function startLink() {
         link.peers = n;
         pairEl.hidden = n > 0 || view !== "glass";
         pairBtn.hidden = n > 0;
-        if (n > 0) { hint("Laptop connected. Point to move, pinch to click.", 4000); link.broadcast({ t: "state", ...glass.state }); }
+        if (n > 0) { hint("Laptop connected. Open hand to move, fist to click.", 4000); link.broadcast({ t: "state", ...glass.state }); }
         else glass.hideCursor();
       },
       onMessage: (m, reply) => onRemote(m, reply),
@@ -485,6 +485,7 @@ function onRemote(m, reply) {
   else if (m.t === "click") glass.click(+m.x, +m.y);
   else if (m.t === "scroll") glass.scroll(Math.max(-2, Math.min(2, +m.dy || 0)));
   else if (m.t === "back") glass.back();
+  else if (m.t === "forward") glass.forward();
   else if (m.t === "load" && typeof m.url === "string") loadURL(m.url);
   else if (m.t === "size") glassSize(m.up ? 1.1 : 0.9);
   else if (m.t === "hello") reply({ t: "state", ...glass.state });

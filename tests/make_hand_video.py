@@ -1,5 +1,5 @@
 """Fake webcam for the browser hand-gesture test, built from real hand photos.
-Timeline: open hand held, pushed slowly up (scroll), then the hand leaves the frame.
+Timeline: index finger moving down (scroll down), hand leaves, open hand (cursor), fist (click).
 Usage: python tests/make_hand_video.py out.y4m"""
 import subprocess, sys, tempfile
 from pathlib import Path
@@ -9,7 +9,7 @@ W, H, FPS = 640, 480, 15
 def load(name, size=230):
     im = cv2.imread(str(fx / name)); h, w = im.shape[:2]; k = size / max(h, w)
     return cv2.resize(im, (int(w * k), int(h * k)))
-palm, point = load("open_palm.jpg"), load("pointing_up.jpg")
+palm, point, fist = load("open_palm.jpg"), load("pointing_up.jpg"), load("fist.jpg")
 def frame(img, cx, cy):
     f = np.full((H, W, 3), (200, 205, 210), np.uint8)
     if img is not None:
@@ -23,9 +23,12 @@ def add(img, secs, x0, x1=None, y0=0.5, y1=None):
     for i in range(n):
         k = i / max(1, n - 1); seg.append(frame(img, x0 + (x1 - x0) * k, y0 + (y1 - y0) * k))
 # Slow on purpose: the test machine only runs hand tracking a few times a second.
-add(palm, 3, 0.5, y0=0.70)
-add(palm, 8, 0.5, y0=0.70, y1=0.34)           # push up: scroll down the page
-add(None, 3, 0.5)                             # hand leaves the frame
+add(point, 3, 0.5, y0=0.36)
+add(point, 8, 0.5, y0=0.36, y1=0.70)          # index finger moving down: scroll down
+add(None, 2, 0.5)                             # hand leaves the frame
+add(palm, 4, 0.5, y0=0.5)                     # open hand: cursor
+add(fist, 4, 0.5, y0=0.5)                     # close into a fist: click
+add(None, 3, 0.5)
 with tempfile.TemporaryDirectory() as d:
     for i, f in enumerate(seg): cv2.imwrite(f"{d}/{i:04d}.png", f)
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(FPS), "-i", f"{d}/%04d.png", "-pix_fmt", "yuv420p", sys.argv[1]], check=True)

@@ -1,5 +1,5 @@
 // Real browser + real MediaPipe hand tracking + a fake webcam of real hand photos:
-// an open hand must scroll the floating page, and never click. (Swipes need a faster
+// the index finger must scroll the floating page and a fist must click. (Swipes need a faster
 // machine than this sandbox; they are covered with real recorded hands in gestures.test.mjs.)
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -61,12 +61,16 @@ async function t(name, fn) {
 
   const seen = new Set();
   let y0 = 0;
-  await t("pushing an open hand up scrolls the floating page down", async () => {
+  await t("moving the index finger down scrolls the floating page down, without clicking", async () => {
     y0 = (await disp.evaluate(() => window.__airpane.state.glass)).y || 0;
     const until = Date.now() + 45000;
+    let clicks = (await ctl.evaluate(() => window.__ctl.state.events.click)), recent = [];
     while (Date.now() < until) {
-      const s = await ctl.evaluate(() => ({ pose: window.__ctl.state.pose, ev: window.__ctl.state.events }));
-      if (s.pose) seen.add(s.pose);
+      const { pose: s, c } = await ctl.evaluate(() => ({ pose: window.__ctl.state.pose, c: window.__ctl.state.events.click }));
+      if (s) seen.add(s);
+      recent = [...recent.slice(-4), s];
+      // the fake webcam loops, so a fist may come round; a click must only ever follow a fist
+      if (c > clicks) { assert.ok(recent.includes("fist"), "clicked without a fist: " + recent); clicks = c; }
       const y = (await disp.evaluate(() => window.__airpane.state.glass)).y || 0;
       if (y - y0 > 150) break;
       await ctl.waitForTimeout(100);
@@ -75,15 +79,18 @@ async function t(name, fn) {
     assert.ok(y - y0 > 150, `page only moved ${Math.round(y - y0)}px; poses seen: ${[...seen]}`);
   });
 
-  await t("the open hand never clicks", async () => {
+  await t("an open hand shows the cursor, then closing it into a fist clicks", async () => {
+    await ctl.waitForFunction(() => window.__ctl.state.events.cur > 0, null, { timeout: 45000 });
+    await ctl.waitForFunction(() => window.__ctl.state.events.click > 0, null, { timeout: 45000 });
     const ev = await ctl.evaluate(() => window.__ctl.state.events);
-    assert.equal(ev.click, 0, JSON.stringify(ev));
+    assert.ok(ev.click >= 1 && ev.click <= 2, JSON.stringify(ev));
   });
 
-  await t("the controller shows the easy gesture guide", async () => {
+  await t("the controller shows the gesture guide", async () => {
     const txt = await ctl.textContent(".howto");
-    assert.match(txt, /Open hand, move up or down/);
-    assert.doesNotMatch(txt, /V sign/);
+    assert.match(txt, /Close into a fist/);
+    assert.match(txt, /Index finger up, move up \/ down/);
+    assert.match(txt, /flick left \/ right/);
   });
 
   await t("no console errors", async () => { assert.deepEqual(errs, []); });
