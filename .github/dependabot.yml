@@ -1,0 +1,15 @@
+# Dependabot: daily dependency update checks for each package manager in this repo.
+version: 2
+updates:
+  - package-ecosystem: "npm"            # package.json / package-lock.json (website + API)
+    directory: "/"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"            # desktop/requirements.txt (Airpane Desktop)
+    directory: "/desktop"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "github-actions" # .github/workflows/*.yml
+    directory: "/"
+    schedule:
+      interval: "daily"
