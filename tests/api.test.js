@@ -112,7 +112,7 @@ async function t(name, fn) { try { await fn(); pass++; console.log("ok  ", name)
   const page = require("../api/page");
   const callRaw = (handler, url) => new Promise((resolve) => {
     const req = Readable.from([]); Object.assign(req, { method: "GET", url });
-    const res = { headers: {}, statusCode: 200, setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, end(s) { resolve({ status: this.statusCode, text: String(s), headers: this.headers }); } };
+    const res = { headers: {}, statusCode: 200, setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, end(s) { resolve({ status: this.statusCode, text: Buffer.isBuffer(s) ? s.toString("latin1") : String(s), headers: this.headers }); } };
     handler(req, res);
   });
   await t("page: missing url -> 400", async () => assert.equal((await callRaw(page, "/api/page")).status, 400));
@@ -127,6 +127,24 @@ async function t(name, fn) { try { await fn(); pass++; console.log("ok  ", name)
     assert.doesNotMatch(r.text, /<script/i);
     assert.doesNotMatch(r.text, /\son(click|load|error|mouseover)\s*=/i);
     assert.doesNotMatch(r.text, /href\s*=\s*["']\s*javascript:/i);
+  });
+  await t("page: a PDF is flagged so the display can draw it", async () => {
+    const r = await callRaw(page, "/api/page?url=" + encodeURIComponent("https://anchit-tandon.com/assets/resume.pdf"));
+    assert.equal(r.status, 200); assert.equal(r.headers["x-airpane-kind"], "pdf");
+    assert.equal(JSON.parse(r.text).pdf, true);
+  });
+  await t("page: Wikipedia gets its phone layout on narrow screens only", async () => {
+    const n = await callRaw(page, "/api/page?w=400&url=" + encodeURIComponent("https://en.m.wikipedia.org/wiki/Hologram"));
+    assert.match(decodeURIComponent(n.headers["x-final-url"]), /useskin=minerva/);
+    const w = await callRaw(page, "/api/page?w=1200&url=" + encodeURIComponent("https://en.wikipedia.org/wiki/Hologram"));
+    assert.doesNotMatch(decodeURIComponent(w.headers["x-final-url"]), /useskin/);
+  });
+  const file = require("../api/file");
+  await t("file: serves a PDF, refuses web pages and private hosts", async () => {
+    const r = await callRaw(file, "/api/file?url=" + encodeURIComponent("https://anchit-tandon.com/assets/resume.pdf"));
+    assert.equal(r.status, 200); assert.equal(r.headers["content-type"], "application/pdf");
+    assert.equal((await callRaw(file, "/api/file?url=" + encodeURIComponent("https://example.com/"))).status, 415);
+    assert.equal((await callRaw(file, "/api/file?url=" + encodeURIComponent("http://127.0.0.1/x.pdf"))).status, 422);
   });
   delete process.env.HYPERBEAM_API_KEY;
   console.log(`\n${pass} API tests passed${process.exitCode ? " (with failures)" : ""}`);

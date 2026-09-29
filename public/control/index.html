@@ -54,6 +54,7 @@
           <button id="smaller" class="chip" type="button">Text -</button>
           <button id="bigger" class="chip" type="button">Text +</button>
           <button id="hands" class="chip on" type="button" aria-pressed="true">Hand control: on</button>
+          <button id="big" class="chip" type="button" aria-pressed="false">Full screen</button>
         </div>
       </div>
 
@@ -67,15 +68,15 @@
           <div id="gesture-flash" class="gesture-flash" hidden></div>
           <ul class="howto">
             <li><b>Open hand, move it</b>: move the cursor</li>
-            <li><b>Close into a fist</b>: click</li>
-            <li><b>Index finger up, move up / down</b>: scroll up / down</li>
-            <li><b>Index finger, flick left / right</b>: back / forward</li>
-            <li><b>Thumbs up / down</b>: bigger / smaller text</li>
+            <li><b>Close the open hand into a fist</b>: click</li>
+            <li><b>Index finger, move up / down</b>: scroll</li>
+            <li><b>Index finger, quick flick left / right</b>: back / forward</li>
+            <li class="muted">Rest your finger for a moment between a scroll and a flick.</li>
           </ul>
           <div id="gesture" class="gesture muted small">No hand in view</div>
         </div>
         <div class="card pad-card">
-          <div class="pad-head"><div class="pad-title"><b>Live view</b><button id="big" class="chip" type="button" aria-pressed="false">Full screen</button></div><span class="muted small">The same page is floating in the glass. Move, click and scroll on it.</span></div>
+          <div class="pad-head"><b>Live view</b><span class="muted small">The same page is floating in the glass. Move, click and scroll on it.</span></div>
           <div id="pad" class="pad" tabindex="0" aria-label="Live view of the floating page. Move to point, click to open links, scroll to scroll.">
             <div id="mirror" class="mirror" aria-hidden="true"><div class="m-box"><div class="g-doc"><div class="g-content"></div><iframe class="g-page" sandbox="allow-same-origin" title="Live page" tabindex="-1" hidden></iframe></div></div></div>
             <div id="pad-empty" class="pad-empty">Waiting for the page</div>

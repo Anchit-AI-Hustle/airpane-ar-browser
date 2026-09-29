@@ -45,16 +45,14 @@ body { background: radial-gradient(900px 500px at 80% 0%, rgba(122, 162, 255, 0.
 .pad-cursor[hidden] { display: none; }
 .pad-card { display: flex; flex-direction: column; gap: 8px; }
 @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .pad { width: min(100%, calc(55vh * (var(--ar)))); } }
-.pad-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.pad-title .chip { padding: 7px 12px; font-size: 13px; }
 .m-box .g-page { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; pointer-events: none; }
 .m-box .g-page[hidden] { display: none; }
 /* Full screen live view: the page fills the laptop screen, hand control keeps working. */
 body.big-view { overflow: hidden; }
-body.big-view .pad-card, .pad-card:fullscreen { position: fixed; inset: 0; z-index: 50; border-radius: 0; border: 0; padding: 10px 16px 12px; background: #05070d; overflow: hidden; }
-body.big-view .pad-head .muted { display: none; }
-body.big-view .pad-card > p { display: none; }
-body.big-view .pad { width: min(100%, calc((100vh - 70px) * (var(--ar)))); }
+/* Full screen: the browser goes full screen and the top bar hides, so only the page shows */
+body.big-view .now { position: fixed; top: 8px; right: 8px; z-index: 60; padding: 0; background: none; border: 0; }
+body.big-view .now > :not(.row), body.big-view .row > :not(#big) { display: none; }
+body.big-view #big { background: rgba(8, 11, 20, 0.85); }
 /* Pairing: scan the QR code with the phone, nothing to type */
 #pair { max-width: 760px; }
 .qr-row { display: flex; gap: 22px; align-items: center; margin-top: 14px; }
@@ -70,3 +68,36 @@ body.big-view .pad { width: min(100%, calc((100vh - 70px) * (var(--ar)))); }
 #pair #code { font-size: 22px; letter-spacing: 0.12em; }
 #pair #code::placeholder { letter-spacing: 0; font-size: 16px; font-weight: 500; }
 @media (max-width: 600px) { .qr-row { flex-direction: column; align-items: stretch; } .qr { width: min(240px, 100%); height: auto; aspect-ratio: 1; margin: 0 auto; } }
+
+/* ---------- Connected: the live page fills the whole window ----------
+   A slim bar on top (address, Back, Forward, text size, hand control, full screen),
+   the page in the rest of the window at the display's exact shape, and the camera as a
+   small picture in the corner (hover it for the gesture guide). */
+body.connected { overflow: hidden; }
+body.connected .ctl { max-width: none; height: 100vh; height: 100dvh; padding: 0; display: flex; flex-direction: column; }
+body.connected .top { display: none; }
+body.connected #panel { margin: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0; }
+body.connected .now { flex: none; border-radius: 0; border-width: 0 0 1px; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; background: #0b0f1c; }
+body.connected .now-row { flex: 0 1 260px; min-width: 0; font-size: 14px; }
+body.connected #now-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.connected .go { flex: 1 1 280px; }
+body.connected .go input { height: 38px; }
+body.connected .go .btn-primary { padding: 0 16px; min-height: 38px; }
+body.connected .row { margin: 0; flex: 0 1 auto; gap: 6px; }
+body.connected .row .chip { padding: 7px 11px; }
+body.connected #now-hover { position: fixed; left: 12px; bottom: 12px; z-index: 40; margin: 0; max-width: calc(100% - 330px); padding: 7px 12px; border-radius: 99px; background: rgba(8, 11, 20, 0.88); border: 1px solid var(--line); color: #dfe5f5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+body.connected .grid { flex: 1; min-height: 0; display: block; position: relative; }
+body.connected .pad-card { position: absolute; inset: 0; border: 0; border-radius: 0; padding: 0; background: #05070d; display: grid; place-items: center; container-type: size; }
+body.connected .pad-head, body.connected .pad-card > p { display: none; }
+body.connected .pad { width: min(100cqw, 100cqh * (var(--ar))); max-height: 100cqh; border-radius: 0; border-width: 0; }
+body.connected .cam { position: fixed; right: 12px; bottom: 12px; z-index: 45; width: clamp(140px, 14vw, 210px); padding: 6px; border-radius: 14px; background: rgba(10, 14, 26, 0.92); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+body.connected .cam-box { border-radius: 10px; }
+body.connected .cam .howto { display: none; margin: 8px 4px 4px; font-size: 13px; }
+body.connected .cam:hover .howto, body.connected .cam:focus-within .howto { display: block; }
+body.connected .cam .gesture { margin: 6px 4px 2px; font-size: 12px; }
+body.connected .gesture-flash { top: 12px; }
+@media (max-width: 760px) {
+  body.connected .now-row { flex-basis: 100%; }
+  body.connected .cam { width: 120px; }
+  body.connected #now-hover { max-width: calc(100% - 160px); }
+}

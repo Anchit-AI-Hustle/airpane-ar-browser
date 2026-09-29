@@ -486,9 +486,11 @@ async function t(name, fn) {
       await ctl.fill("#code", code.toLowerCase());
       await ctl.click("#connect");
       await ctl.waitForSelector("#panel:not([hidden])", { timeout: 30000 });
-      const lay = await ctl.evaluate(() => { const p = document.getElementById("panel"), r = p.getBoundingClientRect(); return { pos: getComputedStyle(p).position, left: r.left, right: innerWidth - r.right, over: document.documentElement.scrollWidth - innerWidth }; });
-      assert.equal(lay.pos, "static", "controller layout broken: " + JSON.stringify(lay));
-      assert.ok(lay.left >= 15 && lay.right >= 15 && lay.over <= 0, JSON.stringify(lay));
+      // once connected the live page fills the window: slim bar on top, camera in a corner
+      await ctl.waitForFunction(() => document.body.classList.contains("connected"));
+      const lay = await ctl.evaluate(() => { const c = document.querySelector(".pad-card").getBoundingClientRect(), bar = document.querySelector(".now").getBoundingClientRect(), cam = document.querySelector(".cam").getBoundingClientRect(); return { cardW: c.width, cardH: c.height, top: c.top, bottom: innerHeight - c.bottom, bar: bar.height, camW: cam.width, W: innerWidth, H: innerHeight, overX: document.documentElement.scrollWidth - innerWidth, overY: document.documentElement.scrollHeight - innerHeight }; });
+      assert.ok(Math.abs(lay.cardW - lay.W) < 2 && lay.bottom < 2 && lay.cardH > lay.H - 90, "live page does not fill the window: " + JSON.stringify(lay));
+      assert.ok(lay.bar < 80 && lay.camW < 300 && lay.overX <= 0 && lay.overY <= 0, JSON.stringify(lay));
       await disp.waitForFunction(() => window.__airpane.state.peers === 1, null, { timeout: 15000 });
       assert.equal(await disp.isHidden("#glass-pair"), true, "pairing card should hide once connected");
       await ctl.waitForFunction(() => /Augmented reality/i.test(document.getElementById("now-title").textContent), null, { timeout: 15000 });
@@ -561,7 +563,7 @@ async function t(name, fn) {
       await ctl.waitForFunction(() => window.__ctl.state.big);
       await ctl.waitForTimeout(300);
       const r = await ctl.evaluate(() => { const p = document.getElementById("pad").getBoundingClientRect(); return { w: p.width, h: p.height, W: innerWidth, H: innerHeight, k: document.querySelector("#mirror .m-box").getBoundingClientRect().width / p.width }; });
-      assert.ok(r.w > r.W * 0.9 || r.h > r.H * 0.85, "live view not full screen " + JSON.stringify(r));
+      assert.ok(r.w > r.W * 0.97 || r.h > r.H * 0.97, "live view not full screen " + JSON.stringify(r));
       assert.ok(Math.abs(r.k - 1) < 0.01, "mirror not refitted " + r.k);
       await ctl.screenshot({ path: `${SHOTS}/glass-5-full-screen.png` });
       // the pad still drives the floating page in full screen
@@ -583,6 +585,38 @@ async function t(name, fn) {
       await ctl.waitForFunction(() => /Example Domain/.test(document.getElementById("now-title").textContent), null, { timeout: 10000 });
     });
 
+    await t("tabs that a site switches with its own scripts open on the floating page and the live view", async () => {
+      await ctl.fill("#go-url", "anchit-tandon.com");
+      await ctl.press("#go-url", "Enter");
+      await disp.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && g.mode === "page" && /anchit-tandon/.test(g.url); }, null, { timeout: 40000 });
+      await ctl.waitForFunction(() => window.__ctl.state.mirror.mode === "page" && /anchit-tandon/.test(window.__ctl.state.mirror.url) && !document.querySelector("#mirror .g-page").hidden, null, { timeout: 40000 });
+      const shownView = (pg, sel) => pg.evaluate((sel) => [...document.querySelector(sel).contentDocument.querySelectorAll("section.view")].filter((v) => v.getClientRects().length).map((v) => v.id).join(","), sel);
+      assert.equal(await shownView(disp, "#glass .g-page"), "view-home");
+      for (const [label, id] of [["About", "view-about"], ["Now", "view-now"], ["Experience", "view-experience"]]) {
+        const L = await disp.evaluate((id) => window.__airpane.glassLinks(300).find((l) => l.href.endsWith("#" + id.replace("view-", ""))), id);
+        assert.ok(L, "no menu item for " + label);
+        const pad = await ctl.locator("#pad").boundingBox();
+        await ctl.mouse.click(pad.x + L.x * pad.width, pad.y + L.y * pad.height);
+        await disp.waitForFunction((id) => window.__airpane.state.glass.tab === id.replace("view-", ""), id, { timeout: 20000 }).catch(async () => { throw new Error(label + " did not switch on the display: " + JSON.stringify(await disp.evaluate(() => window.__airpane.state.glass)) + " clicked " + JSON.stringify(L)); });
+        assert.equal(await shownView(disp, "#glass .g-page"), id, label + " did not open on the display");
+        await ctl.waitForFunction((id) => [...document.querySelector("#mirror .g-page").contentDocument.querySelectorAll("section.view")].some((v) => v.id === id && v.getClientRects().length), id, { timeout: 20000 }).catch(async () => { throw new Error(label + " did not switch in the live view: " + JSON.stringify(await ctl.evaluate(() => window.__ctl.state.mirror))); });
+      }
+      await ctl.click("#back");
+      await disp.waitForFunction(() => window.__airpane.state.glass.tab === "now", null, { timeout: 10000 });
+      assert.equal(await shownView(disp, "#glass .g-page"), "view-now");
+    });
+
+    await t("a PDF (the resume) opens as pages on the floating page and the live view", async () => {
+      await ctl.fill("#go-url", "https://anchit-tandon.com/assets/resume.pdf");
+      await ctl.press("#go-url", "Enter");
+      await disp.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && /resume\.pdf/.test(g.url); }, null, { timeout: 60000 });
+      const d = await disp.evaluate(() => { const g = window.__airpane.state.glass, doc = document.querySelector("#glass .g-page").contentDocument; return { mode: g.mode, err: g.error, imgs: doc.images.length, w: doc.images[0] && doc.images[0].naturalWidth, max: g.max }; });
+      assert.ok(d.mode === "page" && !d.err && d.imgs >= 1 && d.w > 500 && d.max > 100, JSON.stringify(d));
+      await ctl.waitForFunction(() => (document.querySelector("#mirror .g-page").contentDocument?.images.length || 0) >= 1, null, { timeout: 60000 });
+      await ctl.click("#back");
+      await disp.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && /anchit-tandon\.com\/?$/.test(g.url); }, null, { timeout: 40000 });
+    });
+
     await t("controller: webcam hand tracking finds the hand and drives the cursor", async () => {
       await ctl.waitForFunction(() => window.__ctl.state.detector && window.__ctl.state.hand, null, { timeout: 60000 });
       const c0 = await ctl.evaluate(() => window.__ctl.state.events.cur);
@@ -593,7 +627,7 @@ async function t(name, fn) {
       assert.ok(st.events.cur > c0 || st.events.cur > 0, "hand cursor never sent");
       assert.equal(await disp.isVisible(".g-cursor"), true);
       await ctl.evaluate(() => scrollTo(0, 0));
-      await ctl.screenshot({ path: `${SHOTS}/glass-3-controller.png` });
+      await ctl.screenshot({ path: `${SHOTS}/glass-3-controller.png`, timeout: 15000 }).catch(() => {}); // picture only, not a check
     });
 
     await t("controller: with the page shown the right way up (no sheet), the laptop cursor still lands on links", async () => {

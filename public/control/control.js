@@ -3,7 +3,7 @@
 import { createGestures } from "/gestures.js";
 import { POSES } from "/poses.js";
 import { join, cleanCode, newCode } from "/link.js";
-import { renderBlocks } from "/glass.js";
+import { renderBlocks, switchTab, pdfPage } from "/glass.js";
 
 const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1";
 const HAND_MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
@@ -30,6 +30,7 @@ async function connect(code, { wait = 0 } = {}) {
   if (link) { l.close(); return; } // the other way of pairing got there first
   link = l;
   if (qrWait) qrWait.abort();
+  document.body.classList.add("connected"); // the live page now fills the window
   send({ t: "hello" });
   $("pair").hidden = true; $("panel").hidden = false;
   const q = new URLSearchParams(location.search); q.set("code", code);
@@ -87,7 +88,7 @@ function onState(m) {
 // scroll position and cursor position match the floating page exactly.
 const mBox = document.querySelector("#mirror .m-box"), mContent = document.querySelector("#mirror .g-content");
 const mFrame = document.querySelector("#mirror .g-page");
-const M = { url: "", loaded: "", pending: "", view: null, y: 0, hover: "", mode: "" };
+const M = { url: "", loaded: "", pending: "", view: null, y: 0, hover: "", mode: "", tab: "", appliedTab: "" };
 let mirrorReq = 0;
 function mirror(m) {
   const empty = $("pad-empty");
@@ -101,7 +102,7 @@ function mirror(m) {
     }
     fitMirror();
   }
-  M.y = +m.y || 0; M.hover = m.hover || "";
+  M.y = +m.y || 0; M.hover = m.hover || ""; M.tab = m.tab || "";
   const mode = m.mode === "page" ? "page" : "reader";
   const key = mode + " " + (m.url || "");
   if (m.loading) { empty.textContent = "Opening the page"; empty.hidden = false; clearMirror(); M.loaded = ""; M.pending = ""; mirrorReq++; }
@@ -118,9 +119,12 @@ async function loadMirror(url, mode, key) {
   try {
     if (mode === "page") {
       // The real page, same as on the display: its own colours, fonts and images.
-      const r = await fetch("/api/page?url=" + encodeURIComponent(url) + "&w=" + Math.round((M.view && M.view.w) || 1200));
-      if (!r.ok) throw new Error("Could not open");
-      const html = await r.text();
+      const w = Math.round((M.view && M.view.w) || 1200);
+      const r = await fetch("/api/page?url=" + encodeURIComponent(url) + "&w=" + w);
+      let html;
+      if (r.headers.get("x-airpane-kind") === "pdf") html = (await pdfPage(url, w)).html; // a PDF, drawn the same way as on the display
+      else if (!r.ok) throw new Error("Could not open");
+      else html = await r.text();
       if (id !== mirrorReq) return;
       mContent.innerHTML = "";
       await new Promise((ok) => { mFrame.onload = () => ok(); mFrame.hidden = false; mFrame.srcdoc = html; setTimeout(ok, 15000); });
@@ -133,7 +137,7 @@ async function loadMirror(url, mode, key) {
       mFrame.hidden = true; mFrame.removeAttribute("srcdoc");
       mContent.innerHTML = renderBlocks(data);
     }
-    M.mode = mode; M.loaded = key; M.pending = ""; $("pad-empty").hidden = true;
+    M.mode = mode; M.loaded = key; M.pending = ""; M.appliedTab = ""; $("pad-empty").hidden = true;
   } catch (e) {
     if (id !== mirrorReq) return;
     $("pad-empty").textContent = "Live view unavailable for this page. It still floats in the glass."; $("pad-empty").hidden = false;
@@ -145,11 +149,16 @@ function paintMirror() {
   if (M.mode === "page") {
     const d = mFrame.contentDocument, w = mFrame.contentWindow;
     if (!d || !d.documentElement) return;
+    // the same tab of the page as on the display
+    if (M.tab !== M.appliedTab) {
+      if (M.tab) { switchTab(d, M.tab); M.appliedTab = M.tab; }
+      else if (M.url) { M.loaded = ""; loadMirror(M.url, "page", "page " + M.url); return; }
+    }
     const z = (M.view && M.view.zoom) || 1;
     if (d.documentElement.style.zoom !== String(z)) d.documentElement.style.zoom = z;
     w.scrollTo(0, M.y);
-    for (const a of d.querySelectorAll("a.airpane-hover")) a.classList.remove("airpane-hover");
-    if (M.hover) for (const a of d.querySelectorAll("a[href]")) {
+    for (const a of d.querySelectorAll(".airpane-hover")) a.classList.remove("airpane-hover");
+    if (M.hover) for (const a of d.querySelectorAll("a[href], [data-view], [data-tab], [data-target], [data-section], [data-page], [aria-controls]")) {
       const t = (a.textContent || a.getAttribute("aria-label") || a.href || "").replace(/\s+/g, " ").trim().slice(0, 90);
       if (t === M.hover) { a.classList.add("airpane-hover"); break; }
     }
@@ -170,11 +179,11 @@ new ResizeObserver(fitMirror).observe(document.getElementById("pad"));
 const bigBtn = $("big");
 function setBig(on) {
   document.body.classList.toggle("big-view", on);
-  bigBtn.textContent = on ? "Exit full screen" : "Full screen";
+  bigBtn.textContent = on ? "Exit full screen (Esc)" : "Full screen";
   bigBtn.setAttribute("aria-pressed", String(on));
-  const card = document.querySelector(".pad-card");
+  const root = document.documentElement;
   try {
-    if (on && card.requestFullscreen && !document.fullscreenElement) card.requestFullscreen().catch(() => {});
+    if (on && root.requestFullscreen && !document.fullscreenElement) root.requestFullscreen().catch(() => {});
     if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
   } catch {}
   requestAnimationFrame(fitMirror);

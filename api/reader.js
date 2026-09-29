@@ -27,7 +27,7 @@ async function fetchPage(url) {
     if (r.status >= 300 && r.status < 400 && loc) { await r.body?.cancel(); current = new URL(loc, current).href; continue; }
     if (!r.ok) { await r.body?.cancel(); throw new Error(`The site answered ${r.status}`); }
     const type = r.headers.get("content-type") || "";
-    if (!/html|xml/i.test(type)) { await r.body?.cancel(); throw new Error("Not a web page"); }
+    if (!/html|xml/i.test(type)) { await r.body?.cancel(); const e = new Error("Not a web page"); e.contentType = type; e.finalUrl = current; throw e; }
     const buf = await r.arrayBuffer();
     if (buf.byteLength > MAX_BYTES) throw new Error("Page too large");
     return { html: new TextDecoder("utf-8").decode(buf), finalUrl: current };

@@ -90,9 +90,10 @@ async function t(name, fn) {
 
   await t("the controller shows the gesture guide", async () => {
     const txt = await ctl.textContent(".howto");
-    assert.match(txt, /Close into a fist/);
-    assert.match(txt, /Index finger up, move up \/ down/);
-    assert.match(txt, /flick left \/ right/);
+    assert.match(txt, /Close the open hand into a fist/);
+    assert.match(txt, /Index finger, move up \/ down/);
+    assert.match(txt, /quick flick left \/ right/);
+    assert.doesNotMatch(txt, /Thumbs/);
   });
 
   await t("no console errors", async () => { assert.deepEqual(errs, []); });

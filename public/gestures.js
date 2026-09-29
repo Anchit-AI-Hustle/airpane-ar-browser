@@ -1,9 +1,11 @@
-// Laptop controller gestures. Few, simple, and each shape does one thing:
+// Laptop controller gestures. Four, and no two share a movement:
 //   Open hand, move it ................ move the cursor
-//   Close the hand into a fist ........ click (once per fist)
-//   Index finger up, move up / down ... scroll up / down
-//   Index finger, flick left / right .. back / forward
-//   Thumbs up / thumbs down, hold ..... bigger / smaller text
+//   Close the open hand into a fist ... click (once per fist)
+//   Index finger, move up / down ...... scroll up / down
+//   Index finger, quick flick left / right ... back / forward
+// The index finger decides up-down or sideways from how a movement starts and keeps
+// to that until the finger rests, so a scroll never turns into back / forward and a
+// flick never scrolls. A fist only clicks when it closes straight from an open hand.
 // Pure logic, no DOM, so it can be tested with real recorded hands.
 import { classify, palmCenter } from "./poses.js";
 
@@ -11,18 +13,18 @@ const TIP_INDEX = 8;
 const BOX = { x0: 0.2, x1: 0.8, y0: 0.15, y1: 0.7 }; // comfortable reach area in the camera image
 const POSE_FRAMES = 2;          // a new hand shape must be seen this many frames in a row
 const CLICK_LOOKBACK_MS = 150;  // click where the cursor was just before the hand started closing
+const CLICK_FROM_OPEN_MS = 700; // or, if some other shape came between, within this long of it being open
 const SWIPE_MS = 400, SWIPE_DIST = 0.14, SWIPE_BLOCK_MS = 700;
+const AXIS_V = 0.02, AXIS_H = 0.035; // movement that decides up-down or sideways
+const REST_MS = 350, REST_STEP = 0.003; // a finger this still for this long can start a new movement
 const SCROLL_GAIN = 3.2, SCROLL_DEAD = 0.002;
-const HOLD = { thumbs_up: 450, thumbs_down: 450 };
-const REPEAT = { thumbs_up: 550, thumbs_down: 550 };
 const OPEN = new Set(["open_palm", "four"]);          // move the cursor
-const INDEX = new Set(["point", "peace"]);            // scroll and swipe (a loose point still counts)
+const INDEX = new Set(["point", "peace"]);            // scroll and flick (a loose point still counts)
 export const GESTURE_HELP = [
   ["Open hand, move it", "move the cursor"],
-  ["Close into a fist", "click"],
-  ["Index finger up, move up / down", "scroll"],
-  ["Index finger, flick left / right", "back / forward"],
-  ["Thumbs up / down", "bigger / smaller text"],
+  ["Close the open hand into a fist", "click"],
+  ["Index finger, move up / down", "scroll"],
+  ["Index finger, quick flick left / right", "back / forward"],
 ];
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -53,19 +55,26 @@ function oneEuro({ minCutoff = 1.2, beta = 8, dCutoff = 1 } = {}) {
 
 export function createGestures() {
   let pose = "none", raw = "none", rawN = 0, since = 0, paused = false, missed = false;
-  let cur = null, scrollRef = null, swipe = [], swipeBlock = 0, held = {}, clicked = false;
+  let cur = null, scrollRef = null, swipe = [], swipeBlock = 0, clicked = false;
+  let axis = null, lastMove = 0, lastOpen = -1e9, fistFromOpen = false;
   const history = [];
   const fx = oneEuro(), fy = oneEuro();
 
   const kind = (p) => (OPEN.has(p) ? "open" : INDEX.has(p) ? "index" : p);
-  const setPose = (p, now) => { if (p !== pose) { if (kind(p) !== kind(pose)) { held = {}; since = now; } pose = p; } };
-  const clear = () => { scrollRef = null; swipe = []; };
+  const setPose = (p, now) => {
+    if (p === pose) return;
+    // a fist counts as a click only if the hand closed straight from open
+    if (p === "fist") fistFromOpen = OPEN.has(pose) || now - lastOpen <= CLICK_FROM_OPEN_MS;
+    if (kind(p) !== kind(pose)) since = now;
+    pose = p;
+  };
+  const clear = () => { scrollRef = null; swipe = []; axis = null; };
 
   return {
     get state() { return { cursor: cur, pose, paused, pinched: pose === "fist", dragging: false }; },
-    reset() { cur = null; missed = false; pose = raw = "none"; rawN = 0; clicked = false; clear(); history.length = 0; held = {}; fx.reset(); fy.reset(); },
+    reset() { cur = null; missed = false; pose = raw = "none"; rawN = 0; clicked = false; clear(); history.length = 0; lastOpen = -1e9; fx.reset(); fy.reset(); },
     setPaused(v) { paused = Boolean(v); },
-    // Events: {t:"cur",x,y} {t:"click",x,y} {t:"scroll",dy} {t:"back"} {t:"forward"} {t:"size",up} {t:"lost"}
+    // Events: {t:"cur",x,y} {t:"click",x,y} {t:"scroll",dy} {t:"back"} {t:"forward"} {t:"lost"}
     update(lm, now) {
       const ev = [];
       // The tracker sometimes misses the hand for one frame: ignore a single missed frame.
@@ -92,45 +101,52 @@ export function createGestures() {
         history.push({ ...cur, t: now });
         while (history.length > 20) history.shift();
         ev.push({ t: "cur", x: cur.x, y: cur.y });
+        lastOpen = now;
       }
 
-      // Fist: one click at the spot the open hand pointed to just before closing
+      // Fist: one click at the spot the open hand pointed to just before closing.
+      // Only a hand that was open a moment ago clicks: curling a pointing finger
+      // (or any other shape) into a fist does nothing.
       if (pose === "fist") {
-        if (!clicked && history.length) {
+        if (!clicked && history.length && fistFromOpen) {
           const aim = history.filter((h) => now - h.t >= CLICK_LOOKBACK_MS).pop() || history[0];
           ev.push({ t: "click", x: aim.x, y: aim.y });
         }
         clicked = true;
-      } else if (OPEN.has(pose) || INDEX.has(pose)) clicked = false;
+      } else if (OPEN.has(pose)) clicked = false;
+      if (!OPEN.has(pose) && pose !== "fist") history.length = 0;
 
-      // Index finger: up / down scrolls, a quick flick left / right goes back / forward
+      // Index finger: up / down scrolls, a quick flick left / right goes back / forward.
       if (INDEX.has(pose) && certain) {
         const tip = m[TIP_INDEX];
-        if (now >= swipeBlock) {
-          swipe.push({ t: now, x: tip[0], y: tip[1] });
-          while (swipe.length && swipe[0].t < now - SWIPE_MS) swipe.shift();
-          const dx = tip[0] - swipe[0].x, dy = tip[1] - swipe[0].y;
-          if (Math.abs(dx) > SWIPE_DIST && Math.abs(dx) > 2 * Math.abs(dy)) {
-            ev.push({ t: dx < 0 ? "back" : "forward" });
-            swipe = []; scrollRef = null; swipeBlock = now + SWIPE_BLOCK_MS;
-            return ev;
-          }
+        const step = scrollRef ? Math.hypot(tip[0] - scrollRef[0], tip[1] - scrollRef[1]) : 0;
+        if (step > REST_STEP) lastMove = now;
+        // a rested finger may start a new movement in either direction
+        if (axis && now - lastMove > REST_MS) { axis = null; swipe = []; }
+        swipe.push({ t: now, x: tip[0], y: tip[1] });
+        // keep the last SWIPE_MS of movement, but always at least the previous frame so a
+        // slow camera (a frame or two a second) can still tell up-down from sideways
+        while (swipe.length > 2 && swipe[0].t < now - SWIPE_MS) swipe.shift();
+        const wx = tip[0] - swipe[0].x, wy = tip[1] - swipe[0].y;
+        const quick = now - swipe[0].t <= SWIPE_MS + 50; // a flick must be fast, whatever the frame rate
+        if (!axis && now >= swipeBlock) {
+          if (Math.abs(wy) > AXIS_V && Math.abs(wy) > 1.5 * Math.abs(wx)) axis = "v";
+          else if (Math.abs(wx) > AXIS_H && Math.abs(wx) > 1.5 * Math.abs(wy)) axis = "h";
         }
-        if (scrollRef && now >= swipeBlock) {
+        if (axis === "h" && quick && now >= swipeBlock && Math.abs(wx) > SWIPE_DIST && Math.abs(wx) > 2 * Math.abs(wy)) {
+          ev.push({ t: wx < 0 ? "back" : "forward" });
+          // bringing the finger back must not flick the other way: wait for it to rest
+          swipe = []; swipeBlock = now + SWIPE_BLOCK_MS; axis = "done";
+        }
+        if (axis === "v" && scrollRef) {
           const dy = tip[1] - scrollRef[1], dx = tip[0] - scrollRef[0];
-          // finger up scrolls up, finger down scrolls down; mostly-vertical moves only
-          if (Math.abs(dy) > SCROLL_DEAD && Math.abs(dy) > 1.5 * Math.abs(dx)) ev.push({ t: "scroll", dy: dy * SCROLL_GAIN });
+          // finger up scrolls up, finger down scrolls down
+          if (Math.abs(dy) > SCROLL_DEAD && Math.abs(dy) > Math.abs(dx)) ev.push({ t: "scroll", dy: dy * SCROLL_GAIN });
         }
         scrollRef = tip;
       } else clear();
 
-      // Thumbs up / down held: text size, repeating while held
-      for (const p of Object.keys(HOLD)) {
-        if (pose !== p || !certain) continue;
-        const h = held[p] || (held[p] = { fired: false, last: 0 });
-        if (!h.fired && now - since >= HOLD[p]) { h.fired = true; h.last = now; ev.push({ t: "size", up: p === "thumbs_up" }); }
-        else if (h.fired && now - h.last >= REPEAT[p]) { h.last = now; ev.push({ t: "size", up: p === "thumbs_up" }); }
-      }
+      // Any other shape (thumbs up, a loose hand...) does nothing.
       return ev;
     },
   };

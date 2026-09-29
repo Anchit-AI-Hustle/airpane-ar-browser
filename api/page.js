@@ -15,7 +15,7 @@ const NO_JS_FIXES = `
   /* faded-in content (but not things deliberately hidden, like closed menus and pop-ups) */
   :is([style*="opacity:0;"], [style*="opacity: 0;"], [style$="opacity:0"], [style$="opacity: 0"]):not([style*="visibility"]):not([style*="pointer-events"]):not([style*="position:fixed"]):not([style*="position: fixed"]) { opacity: 1 !important; }
   .reveal, .fade-in, .fade-up, [data-aos], [data-animate], [data-scroll] { opacity: 1 !important; transform: none !important; visibility: visible !important; }
-  a.airpane-hover { outline: 4px solid #7cf5d3 !important; outline-offset: 2px; background: rgba(124, 245, 211, 0.28) !important; border-radius: 4px; }
+  .airpane-hover { outline: 4px solid #7cf5d3 !important; outline-offset: 2px; background: rgba(124, 245, 211, 0.28) !important; border-radius: 4px; }
 `;
 
 // Wikipedia now sends its desktop layout to everyone, and without its scripts that
@@ -90,6 +90,13 @@ module.exports = async (req, res) => {
     res.setHeader("X-Page-Title", encodeURIComponent(title));
     return res.end(html);
   } catch (e) {
+    // A PDF (a resume, a menu...): the display draws it itself from /api/file.
+    if (/pdf/i.test(e.contentType || "")) {
+      res.statusCode = 200;
+      res.setHeader("X-Airpane-Kind", "pdf");
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify({ error: "PDF", pdf: true, url: e.finalUrl || target }));
+    }
     res.statusCode = 422;
     res.setHeader("Content-Type", "application/json");
     return res.end(JSON.stringify({ error: e.message || "Could not open that page" }));

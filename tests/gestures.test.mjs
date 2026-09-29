@@ -110,12 +110,72 @@ ok("an open hand swept sideways only moves the cursor (no back / forward)", () =
   assert.equal(of(ev, "back").length + of(ev, "forward").length + of(ev, "click").length, 0);
 });
 
-ok("thumbs up / down change text size, repeating while held", () => {
+ok("thumbs up / down do nothing (they look too much like a fist)", () => {
   const g = createGestures(); run.t = 0;
-  const up = of(run(g, [["thumbs_up", 1.6]]), "size");
-  assert.ok(up.length >= 2 && up.every((e) => e.up === true), JSON.stringify(up));
-  const down = of(run(g, [["open_palm", 0.2], ["thumbs_down", 1.0]]), "size");
-  assert.ok(down.length >= 1 && down.every((e) => e.up === false));
+  const ev = run(g, [["thumbs_up", 1.2], ["thumbs_down", 1.2]]);
+  assert.deepEqual(ev.filter((e) => e.t !== "lost"), []);
+});
+
+ok("curling a pointing finger into a fist does not click", () => {
+  const g = createGestures(); run.t = 0;
+  const ev = run(g, [["open_palm", 0.5], ["point", 0.8], ["fist", 1]]);
+  assert.equal(of(ev, "click").length, 0);
+});
+
+ok("a fist that closes long after the hand was open does not click", () => {
+  const g = createGestures(); run.t = 0;
+  const ev = run(g, [["open_palm", 0.5], ["thumbs_up", 1.2], ["fist", 1]]);
+  assert.equal(of(ev, "click").length, 0);
+});
+
+ok("a diagonal, mostly downward index-finger move only scrolls", () => {
+  const g = createGestures(); run.t = 0;
+  const ev = run(g, [["point", 0.3, 0.45, 0.45, 0.3], ["point", 0.4, 0.45, 0.6, 0.3, 0.7]]);
+  assert.equal(of(ev, "back").length + of(ev, "forward").length, 0);
+  assert.ok(of(ev, "scroll").reduce((s, e) => s + e.dy, 0) > 0.3);
+});
+
+ok("a scroll that ends in a quick sideways wobble does not go back or forward", () => {
+  const g = createGestures(); run.t = 0;
+  const ev = run(g, [["point", 0.3, 0.5, 0.5, 0.35], ["point", 0.4, 0.5, 0.5, 0.35, 0.6], ["point", 0.2, 0.5, 0.25, 0.6, 0.6]]);
+  assert.equal(of(ev, "back").length + of(ev, "forward").length, 0);
+  // after the finger rests, a flick works again
+  const ev2 = run(g, [["point", 0.5, 0.25, 0.25, 0.6], ["point", 0.25, 0.25, 0.7, 0.6], ["point", 0.5, 0.7, 0.7, 0.6]]);
+  assert.equal(of(ev2, "forward").length, 1);
+});
+
+ok("flicking left and bringing the finger back does not also go forward", () => {
+  const g = createGestures(); run.t = 0;
+  const ev = run(g, [["point", 0.3, 0.7], ["point", 0.25, 0.7, 0.3], ["point", 1.0, 0.3, 0.7]]);
+  assert.equal(of(ev, "back").length, 1);
+  assert.equal(of(ev, "forward").length, 0);
+});
+
+ok("every gesture does only its own action", () => {
+  const acts = (ev) => [...new Set(ev.map((e) => e.t).filter((t) => t !== "lost"))].sort().join(",");
+  let g = createGestures(); run.t = 0;
+  assert.equal(acts(run(g, [["open_palm", 1, 0.3, 0.7, 0.3, 0.6]])), "cur");
+  g = createGestures(); run.t = 0;
+  assert.equal(acts(run(g, [["point", 0.3, 0.5, 0.5, 0.3], ["point", 0.6, 0.5, 0.5, 0.3, 0.7]])), "scroll");
+  g = createGestures(); run.t = 0;
+  assert.equal(acts(run(g, [["point", 0.3, 0.7], ["point", 0.25, 0.7, 0.3]])), "back");
+  g = createGestures(); run.t = 0;
+  const c = run(g, [["open_palm", 0.5], ["fist", 0.6]]);
+  assert.equal(of(c, "click").length, 1);
+  assert.equal(of(c, "scroll").length + of(c, "back").length + of(c, "forward").length, 0);
+});
+
+ok("on a slow camera (about 1 frame a second) open hand then fist still clicks once", () => {
+  const g = createGestures(); let t = 0; const ev = [];
+  for (const [p, n] of [["open_palm", 4], ["fist", 4], ["open_palm", 2]]) for (let i = 0; i < n; i++) { ev.push(...g.update(placeHand(HANDS[p], 0.5, 0.5), t)); t += 800; }
+  assert.equal(of(ev, "click").length, 1);
+});
+
+ok("on a slow camera the index finger still scrolls, and never flicks", () => {
+  const g = createGestures(); let t = 0; const ev = [];
+  for (let i = 0; i < 10; i++) { ev.push(...g.update(placeHand(HANDS.point, 0.5 + (i % 2) * 0.02, 0.3 + i * 0.04), t)); t += 800; }
+  assert.ok(of(ev, "scroll").reduce((s, e) => s + e.dy, 0) > 0.3, JSON.stringify(of(ev, "scroll")));
+  assert.equal(of(ev, "back").length + of(ev, "forward").length, 0);
 });
 
 ok("a single missed tracking frame does not interrupt scrolling", () => {
