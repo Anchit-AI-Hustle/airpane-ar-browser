@@ -34,3 +34,8 @@
 /* Floating glass on a laptop: the guide stays up and reads the right way round in the sheet */
 #ar.glassv .holo-guide { bottom: 16px; }
 #ar.glassv.sheet .holo-guide { transform: scaleY(-1); }
+/* tap the guide to fold it down to its title (and again to open it) */
+.holo-guide { cursor: pointer; }
+.holo-guide.mini ul, .holo-guide.mini .hg-status { display: none; }
+.holo-guide.mini .hg-title { margin: 0; }
+.holo-guide.mini .hg-title::after { content: " (tap to show)"; font-weight: 500; color: var(--muted); font-size: 11px; }

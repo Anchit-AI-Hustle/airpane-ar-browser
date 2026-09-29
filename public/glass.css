@@ -1,6 +1,9 @@
 /* ---------- Floating glass (phone or iPad flat, clear sheet at 45 degrees) ---------- */
 #ar.glassv { background: #000; }
-#ar.glassv #cam, #ar.glassv #stage { display: none; }
+#ar.glassv #stage { display: none; }
+/* the camera keeps running for hand control but is not shown (tiny and invisible rather than
+   display:none, so phones keep delivering frames) */
+#ar.glassv #cam { inset: auto auto 0 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
 .glass { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #000; touch-action: none; }
 .glass[hidden] { display: none; }
 .g-flip { position: absolute; inset: 0; transform: scaleY(-1); }

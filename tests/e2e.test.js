@@ -446,8 +446,9 @@ async function t(name, fn) {
 
     await t("glass: on a laptop it shows the page, the gesture guide for its own camera, and a pairing code", async () => {
       await disp.goto(BASE + "/" + PQ, { waitUntil: "load" });
-      // on a laptop the page starts as the hand controller; this screen is the floating display
-      assert.equal(await disp.isChecked("input[value=control]"), true, "a laptop should start as the hand controller");
+      // everything runs on this device: it starts in Floating glass, with no pairing option
+      assert.equal(await disp.isChecked("input[value=glass]"), true, "Floating glass should be the default");
+      assert.equal(await disp.locator("input[value=control]").count(), 0, "no separate controller mode");
       await disp.click(".mode-opt:has(input[value=glass])");
       await disp.click("#landing .chip >> text=Wikipedia");
       await disp.waitForSelector("#ar.glassv");
@@ -656,75 +657,27 @@ async function t(name, fn) {
 
     await t("glass + controller: zero console errors", async () => { assert.deepEqual(disp.__errors, []); assert.deepEqual(ctl.__errors, []); });
     await dctx.close(); await cctx.close();
-    await t("one page: on the laptop type a site, press Launch, scan the QR code with the phone, and control it right there", async () => {
+    await t("this device only: one field, Launch opens the floating page here, no pairing, gestures from its own camera", async () => {
       const c2 = await ctlBrowser.newContext({ viewport: { width: 1280, height: 860 }, permissions: ["camera"], ignoreHTTPSErrors: true });
-      const d2 = await browser.newContext({ ...devices["Pixel 7"], ignoreHTTPSErrors: true });
-      const lap = await c2.newPage(), phone = await d2.newPage();
+      const lap = await c2.newPage();
       const errs = [];
-      for (const pg of [lap, phone]) pg.on("pageerror", (e) => errs.push(e.message));
-      await lap.goto(BASE + "/" + PQ, { waitUntil: "load" });
-      const home = lap.url();
-      assert.equal(await lap.isChecked("input[value=control]"), true);
-      await lap.fill("#launch-input", "example.com");
-      await lap.click("#launch-btn");
-      const f = lap.frameLocator("#ctl-frame");
-      await f.locator("#qr svg").waitFor({ timeout: 20000 });
-      assert.equal(lap.url(), home, "the controller must open on the same page");
-      const frame = lap.frames().find((fr) => /\/control/.test(fr.url()));
-      const qr = await frame.evaluate(() => window.__ctl.qr);
-      assert.match(qr.url, /\/\?pair=[A-Z]{4}&open=https%3A%2F%2Fexample\.com/);
-      const box = await f.locator("#qr").boundingBox();
-      assert.ok(box.width >= 180, "QR code too small to scan: " + box.width);
-      await lap.screenshot({ path: `${SHOTS}/pair-1-laptop-qr.png` });
-      // the phone "scans" it: its camera app opens this link
-      await phone.goto(qr.url, { waitUntil: "load" });
-      await phone.waitForFunction(() => window.__airpane && window.__airpane.state.view === "glass" && window.__airpane.state.running, null, { timeout: 20000 });
-      assert.equal(await phone.isVisible("#help-art"), true, "the animated set-up guide should show");
-      await phone.screenshot({ path: `${SHOTS}/pair-2-phone-help.png` });
-      await f.locator("#panel:not([hidden])").waitFor({ timeout: 40000 });
-      await phone.waitForFunction(() => window.__airpane.state.peers === 1, null, { timeout: 20000 });
-      assert.doesNotMatch(phone.url(), /pair=/, "pair code should be removed from the address");
-      await phone.click("#pyr-help-ok");
-      await phone.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && /example\.com/.test(g.url); }, null, { timeout: 30000 });
-      // the laptop's whole window is the controller, and it really controls the phone
-      const lay = await frame.evaluate(() => { const c = document.querySelector(".pad-card").getBoundingClientRect(); return [c.width, innerWidth, document.body.classList.contains("connected")]; });
-      assert.ok(Math.abs(lay[0] - lay[1]) < 2 && lay[2], JSON.stringify(lay));
-      assert.equal(await f.locator(".cam .howto").isVisible(), true, "the gesture guide must stay on screen in the full-window controller");
-      const pad = await f.locator("#pad").boundingBox();
-      await lap.mouse.move(pad.x + pad.width / 2, pad.y + pad.height / 2);
-      await phone.waitForFunction(() => document.querySelector(".g-cursor") && !document.querySelector(".g-cursor").hidden, null, { timeout: 10000 });
-      // Exit goes back to the start of the same page
-      await f.locator("#home").click();
-      await lap.waitForFunction(() => !window.__airpane_ctl.open);
-      assert.equal(await lap.isVisible("#landing"), true);
-      assert.deepEqual(errs, []);
-      await c2.close(); await d2.close();
-    });
-
-    await t("one page: a phone already showing a code can still be paired from the laptop's pairing screen", async () => {
-      const c2 = await ctlBrowser.newContext({ viewport: { width: 1280, height: 860 }, permissions: ["camera"], ignoreHTTPSErrors: true });
-      const d2 = await browser.newContext({ ...devices["Pixel 7"], ignoreHTTPSErrors: true });
-      const lap = await c2.newPage(), phone = await d2.newPage();
-      await phone.goto(BASE + "/" + PQ, { waitUntil: "load" });
-      assert.equal(await phone.isChecked("input[value=glass]"), true, "a phone should start as the floating display");
-      await phone.tap("#landing .chip >> text=Wikipedia");
-      await phone.tap("#pyr-help-ok");
-      await phone.waitForFunction(() => /^[A-Z]{4}$/.test(window.__airpane.state.code || ""), null, { timeout: 30000 });
-      const code = await phone.evaluate(() => window.__airpane.state.code);
+      lap.on("pageerror", (e) => errs.push(e.message));
       await lap.goto(BASE + "/" + PQ, { waitUntil: "load" });
       assert.equal(await lap.locator("#launch-form input").count(), 1, "the home page has one field: the website");
       await lap.fill("#launch-input", "example.com");
       await lap.press("#launch-input", "Enter");
-      const fr = lap.frameLocator("#ctl-frame");
-      await fr.locator("#qr svg").waitFor({ timeout: 20000 });
-      await fr.locator("#code").fill(code.toLowerCase());
-      await fr.locator("#connect").click();
-      await fr.locator("#panel:not([hidden])").waitFor({ timeout: 40000 });
-      await phone.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && /example\.com/.test(g.url); }, null, { timeout: 30000 });
-      // the browser's Back button closes the controller
-      await lap.evaluate(() => history.back());
-      await lap.waitForFunction(() => !window.__airpane_ctl.open, null, { timeout: 5000 });
-      await c2.close(); await d2.close();
+      await lap.waitForSelector("#ar.glassv");
+      await lap.click("#pyr-help-ok");
+      await lap.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && /example\.com/.test(g.url); }, null, { timeout: 30000 });
+      assert.equal(await lap.isVisible("#glass-pair"), false, "no pairing card");
+      assert.equal(await lap.isVisible("#pair-btn"), false, "no pairing button");
+      assert.equal(await lap.locator("#qr, #ctl-frame").count(), 0, "no QR code or second screen");
+      // the laptop's own camera (a test hand) drives the cursor on the floating page
+      await lap.waitForFunction(() => { const h = window.__airpane.state.hands; return h && h.ready && h.events > 0; }, null, { timeout: 60000 });
+      await lap.waitForFunction(() => !document.querySelector("#glass .g-cursor").hidden, null, { timeout: 20000 });
+      assert.equal(await lap.isVisible("#holo-guide"), true, "the gesture guide is on screen");
+      assert.deepEqual(errs, []);
+      await c2.close();
     });
 
     await t("laptop only, no phone: the Hologram shows the real page in 3D, with hand, mouse and wheel control", async () => {

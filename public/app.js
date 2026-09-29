@@ -390,7 +390,7 @@ function applyView(camOk) {
     if (view === "pyramid") { glass.stop(); pairEl.hidden = true; pyr.start(); if (current) pyr.show(current); }
     else {
       pyr.stop(); glass.start(); startLink();
-      if (isLaptop()) startSelfGlass(); // hand control from this laptop's own camera
+      startSelfGlass(); // hand control from this device's own camera
       let flip = "1";
       try { flip = localStorage.getItem("airpane-flip") ?? "1"; } catch {}
       setFlip(flip !== "0");
@@ -452,15 +452,19 @@ let handHinted = false, guideTimer = 0, selfGlass = false;
 // clear sheet) the Floating glass page.
 // (A paired controller takes over the Floating glass, so the two never fight.)
 const handTarget = () => (view === "holo" && holoGlass ? holoGlass : view === "glass" && selfGlass && !(link && link.peers) ? glass : null);
-// Laptop + clear sheet: no phone, the laptop's webcam gives hand control.
+// Floating glass: this device's own camera gives hand control (laptop webcam or phone front camera).
+$("holo-guide").addEventListener("click", (e) => { e.stopPropagation(); $("holo-guide").classList.toggle("mini"); });
 async function startSelfGlass() {
   selfGlass = true;
-  pairEl.hidden = true; pairBtn.hidden = false; // another laptop can still pair via "Pair laptop"
+  // on a small screen the guide folds away after a few seconds; tap it to bring it back
+  $("holo-guide").classList.remove("mini");
+  if (innerWidth < 700) setTimeout(() => { if (selfGlass) $("holo-guide").classList.add("mini"); }, 8000);
+  pairEl.hidden = true; pairBtn.hidden = true;
   $("holo-guide").hidden = false;
   $("holo-hand").textContent = "Starting the camera";
   const ok = await startCamera("user");
   if (view !== "glass" || !selfGlass) { stopCamera(); return; }
-  if (!ok) { $("holo-hand").textContent = "Camera is off: use the mouse or a phone controller"; return; }
+  if (!ok) { $("holo-hand").textContent = "Camera is off: tap or click the page instead"; return; }
   startHands();
 }
 function stopSelfGlass() {
@@ -545,11 +549,11 @@ const HELP = {
       <li>Control it by hand with this laptop's camera: open hand moves the cursor, a fist clicks, index finger up or down scrolls, a quick flick goes back or forward.</li>`,
   },
   glass: {
-    hint: "Lean the clear sheet over the screen. Pair your laptop to control it by hand.",
+    hint: "Lean the clear sheet over the screen. Show your hand to the camera to control it.",
     steps: `<li>Lay this phone or iPad flat, screen up, brightness high, bottom edge towards you. Lock screen rotation first.</li>
       <li>Hold or lean something clear over it at about <b>45°</b>: bottom edge on the far side of the screen, top edge rising towards you. A clear plastic folder, a CD case lid or a photo-frame glass all work.</li>
       <li>Dim the room and look through the sheet with your eyes level with it. The page stands in the air behind the sheet.</li>
-      <li>To control it by hand: on your laptop open <b>airpane.anchit-tandon.com</b>, press <b>Control it by hand</b> and scan the QR code with this phone. Open hand moves the cursor, a fist clicks, index finger up or down scrolls, a flick left or right goes back or forward.</li>`,
+      <li>Control it by hand with this device's front camera: hold your hand where the camera can see it. Open hand moves the cursor, a fist clicks, index finger up or down scrolls, a quick flick goes back or forward. You can also just tap the page.</li>`,
   },
 };
 const helpKey = () => (view === "glass" && isLaptop() ? "glassLaptop" : view);
@@ -577,7 +581,6 @@ async function startLink() {
   if (link || linkStarting) { pairEl.hidden = Boolean(link && link.peers); return; }
   linkStarting = true;
   $("glass-code").textContent = "....";
-  pairEl.hidden = false;
   try {
     link = await host({
       code: pairCode,
@@ -591,8 +594,7 @@ async function startLink() {
       },
       onPeers: (n) => {
         link.peers = n;
-        pairEl.hidden = n > 0 || view !== "glass";
-        pairBtn.hidden = n > 0;
+        pairEl.hidden = true; pairBtn.hidden = true;
         // a paired controller takes over: pause this laptop's own hand tracking meanwhile
         if (selfGlass && hands) { if (n > 0) hands.stop(); else startHands(); }
         if (selfGlass) $("holo-hand").textContent = n > 0 ? "Controlled from another laptop" : "Show your hand to the camera";
@@ -675,7 +677,6 @@ function exitAR() {
 
 addEventListener("popstate", (e) => {
   const s = e.state;
-  if (!shell.hidden && !(s && s.ctl)) return closeController();
   if (!running) return;
   if (!s || !s.ar) return exitAR();
   if (s.url && s.url !== current) loadURL(s.url, { push: false });
@@ -691,70 +692,31 @@ if (pairCode.length === 4) {
   enterAR(new URLSearchParams(location.search).get("open") || "https://en.m.wikipedia.org/wiki/Augmented_reality");
 } else pairCode = "";
 
-// ---------- this device as the hand controller, on this same page ----------
-// Pick "Hand controller", type the website (the pairing code is made automatically),
-// press Launch: the controller opens right here and the phone shows the site.
+// ---------- modes ----------
+// Everything runs on the device the site is opened on, with its own camera for hand control.
 const modeRadios = [...document.querySelectorAll('input[name="mode"]')];
-const shell = $("ctl-shell");
-let shellFrame = null;
 const isLaptop = () => matchMedia("(pointer: fine)").matches && innerWidth >= 900;
-const modeNow = () => (document.querySelector('input[name="mode"]:checked') || {}).value;
-function syncMode() {
-  launchInput.placeholder = modeNow() === "control" ? "Website to open" : "Search or type a URL";
-}
 if (!pairCode) {
   let saved = null;
   try { saved = localStorage.getItem("airpane-mode"); } catch {}
-  if (saved === "hologram" && !isLaptop()) saved = null; // the Hologram is a laptop mode
-  const want = saved || (isLaptop() ? "control" : "glass");
-  const r = modeRadios.find((x) => x.value === want);
+  if (saved === "control" || (saved === "hologram" && !isLaptop())) saved = null;
+  const r = modeRadios.find((x) => x.value === (saved || "glass"));
   if (r) r.checked = true;
 }
-// On a laptop, offer the Hologram (no phone needed); phones keep the camera room.
+// On a laptop, offer the Hologram too; phones keep the camera room.
 if (isLaptop()) {
   document.querySelectorAll(".laptop-only").forEach((el) => { el.hidden = false; });
-  document.querySelector(".modes").classList.add("five");
   $("screen-desc").textContent = "The site itself in a 3D room, with mouse control.";
 }
-modeRadios.forEach((r) => r.addEventListener("change", () => { try { localStorage.setItem("airpane-mode", r.value); } catch {} syncMode(); }));
-syncMode();
-
-function openController(raw) {
-  const url = normalizeInput(raw || "https://en.m.wikipedia.org/wiki/Augmented_reality");
-  const q = new URLSearchParams({ embed: "1", open: url });
-  const peer = new URLSearchParams(location.search).get("peer");
-  if (peer) q.set("peer", peer);
-  // A fresh frame each time (its address is set before it is added), so the browser's
-  // Back button closes the controller instead of stepping back inside it.
-  if (shellFrame) shellFrame.remove();
-  shellFrame = document.createElement("iframe");
-  shellFrame.id = "ctl-frame"; shellFrame.title = "Hand controller";
-  shellFrame.allow = "camera; fullscreen; autoplay; clipboard-write";
-  shellFrame.src = "/control?" + q.toString();
-  shell.append(shellFrame);
-  shell.hidden = false; landing.hidden = true;
-  history.pushState({ ctl: 1 }, "");
-  shellFrame.focus();
-}
-function closeController() {
-  shell.hidden = true; landing.hidden = false;
-  if (shellFrame) { shellFrame.remove(); shellFrame = null; } // stops its camera too
-}
-addEventListener("message", (e) => {
-  if (e.origin !== location.origin || !e.data || e.data.type !== "airpane-close") return;
-  closeController();
-  if (history.state && history.state.ctl) history.back();
-});
-window.__airpane_ctl = { get open() { return !shell.hidden; }, get frame() { return shellFrame; } };
+modeRadios.forEach((r) => r.addEventListener("change", () => { try { localStorage.setItem("airpane-mode", r.value); } catch {} }));
 
 // ---------- wiring ----------
 $("launch-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  if (modeNow() === "control") return openController(launchInput.value);
   enterAR(launchInput.value || "https://en.m.wikipedia.org/wiki/Augmented_reality");
 });
 document.querySelectorAll("#landing .chip").forEach((b) =>
-  b.addEventListener("click", () => { launchInput.value = b.dataset.url; if (modeNow() === "control") openController(b.dataset.url); else enterAR(b.dataset.url); })
+  b.addEventListener("click", () => { launchInput.value = b.dataset.url; enterAR(b.dataset.url); })
 );
 $("url-form").addEventListener("submit", (e) => { e.preventDefault(); loadURL(urlInput.value); });
 $("exit-btn").addEventListener("click", () => { exitAR(); history.replaceState(null, ""); });

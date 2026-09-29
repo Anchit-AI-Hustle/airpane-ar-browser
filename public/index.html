@@ -21,10 +21,6 @@
 .promo-tag { flex: none; font: 700 11px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: #04110c; background: var(--mint); border-radius: 6px; padding: 5px 7px; }
 .promo-go { flex: none; margin-left: auto; color: var(--mint); font-weight: 600; white-space: nowrap; }
 .mode-opt[hidden] { display: none; }
-.modes.five .mode-opt:last-child { grid-column: 1 / -1; }
-.ctl-shell { position: fixed; inset: 0; z-index: 100; background: #05070d; }
-.ctl-shell[hidden] { display: none; }
-.ctl-shell iframe { width: 100%; height: 100%; border: 0; display: block; }
 @media (max-width: 520px) { @media (max-width: 600px) { .promo { flex-wrap: wrap; } .promo-go { margin-left: 0; } }
   </style>
 </head>
@@ -40,7 +36,7 @@
     <section class="hero">
       <div class="copy">
         <h1>Open any website<br /><span class="grad">in the air.</span></h1>
-        <p class="lede">Lay a phone or iPad flat, lean a clear acrylic sheet over it, and the website stands in the air behind the sheet. Control it from your laptop with simple hand gestures at the webcam. No glasses, no app.</p>
+        <p class="lede">Lay a phone or iPad flat, lean a clear acrylic sheet over it, and the website stands in the air behind the sheet. Control it with simple hand gestures at the same device's camera. No glasses, no app, no second device.</p>
 
 
         <div class="modes" role="radiogroup" aria-label="How to show the page">
@@ -48,7 +44,6 @@
           <label class="mode-opt"><input type="radio" name="mode" value="pyramid" /><span><b>Floating pyramid</b><small>Small page in mid-air. Needs a clear pyramid.</small></span></label>
           <label class="mode-opt laptop-only" hidden><input type="radio" name="mode" value="hologram" /><span><b>Hologram</b><small>This laptop only, no phone. The page floats in front of the screen; hand and head control.</small></span></label>
           <label class="mode-opt"><input type="radio" name="mode" value="screen" /><span><b>3D on screen</b><small id="screen-desc">No pyramid. Uses the camera for depth.</small></span></label>
-          <label class="mode-opt"><input type="radio" name="mode" value="control" /><span><b>Hand controller</b><small>This laptop controls a phone's floating page by hand.</small></span></label>
         </div>
 
         <form id="launch-form" class="launch" autocomplete="off">
@@ -89,7 +84,7 @@
 
     <section class="how">
       <div class="step"><span>1</span><h3>Set up the glass</h3><p>Lay the phone or iPad flat and lean a clear acrylic sheet over it at 45°, resting on the far edge and rising towards you.</p></div>
-      <div class="step"><span>2</span><h3>Pair your laptop</h3><p>On the laptop, open this same page, choose Hand controller, type the site and press Launch. Scan the QR code that appears with the phone. Nothing to type.</p></div>
+      <div class="step"><span>2</span><h3>Show your hand</h3><p>The same phone, iPad or laptop watches your hand through its own camera. Nothing to pair, nothing to install.</p></div>
       <div class="step"><span>3</span><h3>Use it in the air</h3><p>Move an open hand to move the cursor, make a fist to click, move your index finger up or down to scroll, flick it left or right to go back or forward.</p></div>
     </section>
 
@@ -226,8 +221,6 @@
 
   <div id="toast" class="toast" role="alert" hidden></div>
 
-  <!-- HAND CONTROLLER: opens on this same page -->
-  <div id="ctl-shell" class="ctl-shell" hidden></div>
 
   <script type="module" src="/app.js"></script>
 </body>
