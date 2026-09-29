@@ -2,7 +2,7 @@
 // cursor on the floating page, over a direct link to the display device.
 import { createGestures } from "/gestures.js";
 import { POSES } from "/poses.js";
-import { join, cleanCode } from "/link.js";
+import { join, cleanCode, newCode } from "/link.js";
 import { renderBlocks } from "/glass.js";
 
 const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1";
@@ -13,33 +13,67 @@ const video = $("video"), overlay = $("overlay"), ctx = overlay.getContext("2d")
 let link = null, handsOn = true, landmarker = null, stream = null, lastSent = 0, lastCur = null;
 const gestures = createGestures();
 const S = { hand: false, pinched: false, events: { cur: 0, click: 0, scroll: 0 } };
-window.__ctl = { get state() { return { connected: Boolean(link), handsOn, mirror: { url: M.url, loaded: M.loaded, mode: M.mode, y: M.y, view: M.view }, big: document.body.classList.contains("big-view"), detector: Boolean(landmarker), camera: Boolean(stream), ...S, gesture: gestures.state }; } };
+window.__ctl = { get qr() { const b = document.getElementById("qr"); return { url: b.dataset.url, code: b.dataset.code }; }, get state() { return { connected: Boolean(link), handsOn, mirror: { url: M.url, loaded: M.loaded, mode: M.mode, y: M.y, view: M.view }, big: document.body.classList.contains("big-view"), detector: Boolean(landmarker), camera: Boolean(stream), ...S, gesture: gestures.state }; } };
 
 function send(m) { if (link) link.send(m); }
 
 // ---------- pairing ----------
+// The laptop shows a QR code for its own code; the phone that scans it opens the
+// floating page listening under that code, and this page connects by itself.
+// Typing the code a phone already shows still works too.
 const codeIn = $("code");
-codeIn.value = cleanCode(new URLSearchParams(location.search).get("code") || "");
 codeIn.addEventListener("input", () => { codeIn.value = cleanCode(codeIn.value); });
+let qrWait = null;
+
+async function connect(code, { wait = 0 } = {}) {
+  const l = await join(code, { onMessage: onState, onClose: onClosed, wait, signal: wait ? qrWait.signal : undefined });
+  if (link) { l.close(); return; } // the other way of pairing got there first
+  link = l;
+  if (qrWait) qrWait.abort();
+  send({ t: "hello" });
+  $("pair").hidden = true; $("panel").hidden = false;
+  const q = new URLSearchParams(location.search); q.set("code", code);
+  history.replaceState(null, "", "?" + q.toString());
+  startCamera();
+}
+
+function showQR() {
+  const code = newCode();
+  const q = new URLSearchParams({ pair: code });
+  const peer = new URLSearchParams(location.search).get("peer");
+  if (peer) q.set("peer", peer);
+  const url = location.origin + "/?" + q.toString();
+  const box = $("qr");
+  box.dataset.url = url; box.dataset.code = code;
+  const draw = () => {
+    if (!window.qrcode) return setTimeout(draw, 100);
+    const qr = window.qrcode(0, "M"); qr.addData(url); qr.make();
+    box.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 3, scalable: true });
+  };
+  draw();
+  qrWait = new AbortController();
+  connect(code, { wait: 30 * 60 * 1000 }).catch((e) => {
+    if (link || (qrWait && qrWait.signal.aborted)) return;
+    $("pair-status").textContent = "Pairing is unavailable right now. Reload to try again.";
+  });
+}
+
 $("pair-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const code = cleanCode(codeIn.value);
   const err = $("pair-err");
   if (code.length !== 4) { err.textContent = "The code has 4 letters."; err.hidden = false; return; }
   err.hidden = true;
+  if (qrWait) qrWait.abort();
   $("connect").disabled = true; $("connect").textContent = "Connecting";
-  try {
-    link = await join(code, { onMessage: onState, onClose: onClosed });
-    send({ t: "hello" });
-    $("pair").hidden = true; $("panel").hidden = false;
-    const q = new URLSearchParams(location.search); q.set("code", code);
-    history.replaceState(null, "", "?" + q.toString());
-    startCamera();
-  } catch (x) {
-    err.textContent = x.message || "Could not connect."; err.hidden = false;
-  }
+  try { await connect(code); }
+  catch (x) { err.textContent = x.message || "Could not connect."; err.hidden = false; if (!link) showQR(); }
   $("connect").disabled = false; $("connect").textContent = "Connect";
 });
+
+const given = cleanCode(new URLSearchParams(location.search).get("code") || "");
+if (given.length === 4) { codeIn.value = given; $("pair-status").textContent = "Reconnecting"; $("pair-form").requestSubmit(); }
+else showQR();
 
 function onState(m) {
   if (!m || m.t !== "state") return;
@@ -84,7 +118,7 @@ async function loadMirror(url, mode, key) {
   try {
     if (mode === "page") {
       // The real page, same as on the display: its own colours, fonts and images.
-      const r = await fetch("/api/page?url=" + encodeURIComponent(url));
+      const r = await fetch("/api/page?url=" + encodeURIComponent(url) + "&w=" + Math.round((M.view && M.view.w) || 1200));
       if (!r.ok) throw new Error("Could not open");
       const html = await r.text();
       if (id !== mirrorReq) return;

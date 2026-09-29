@@ -20,6 +20,11 @@
 .promo:hover { border-color: rgba(124, 245, 211, 0.7); transform: translateY(-1px); }
 .promo-tag { flex: none; font: 700 11px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: #04110c; background: var(--mint); border-radius: 6px; padding: 5px 7px; }
 .promo-go { flex: none; margin-left: auto; color: var(--mint); font-weight: 600; white-space: nowrap; }
+.ctl-cta { display: flex; align-items: center; gap: 12px; max-width: 560px; margin: 0 0 18px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(124, 245, 211, 0.35); background: rgba(124, 245, 211, 0.06); color: var(--ink); text-decoration: none; transition: border-color 0.15s, background 0.15s; }
+.ctl-cta:hover { border-color: rgba(124, 245, 211, 0.7); background: rgba(124, 245, 211, 0.1); }
+.ctl-cta b { display: block; font-size: 15px; }
+.ctl-cta small { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; margin-top: 2px; }
+.ctl-ico { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: rgba(124, 245, 211, 0.14); color: var(--mint); }
 @media (max-width: 600px) { .promo { flex-wrap: wrap; } .promo-go { margin-left: 0; } }
   </style>
 </head>
@@ -36,6 +41,8 @@
       <div class="copy">
         <h1>Open any website<br /><span class="grad">in the air.</span></h1>
         <p class="lede">Lay a phone or iPad flat, lean a clear acrylic sheet over it, and the website stands in the air behind the sheet. Control it from your laptop with simple hand gestures at the webcam. No glasses, no app.</p>
+
+        <a class="ctl-cta" href="/control"><span class="ctl-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10m0-1.5a1.5 1.5 0 0 1 3 0V10m0-.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-.6a6 6 0 0 1-4.9-2.6L3.8 14a1.5 1.5 0 0 1 2.4-1.8L8 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>Control it by hand from this laptop</b><small>Shows a QR code. Scan it with your phone and they pair by themselves.</small></span><span class="promo-go" aria-hidden="true">Start</span></a>
 
         <div class="modes" role="radiogroup" aria-label="How to show the page">
           <label class="mode-opt"><input type="radio" name="mode" value="glass" checked /><span><b>Floating glass</b><small>Big page in the air. Needs a clear sheet. Hand control.</small></span></label>
@@ -57,8 +64,9 @@
           <button class="chip" data-url="https://threejs.org">three.js</button>
         </div>
 
+
         <ul class="notes">
-          <li>Controlling from a laptop? Open <a href="/control">airpane.anchit-tandon.com/control</a> there. <a href="/pyramid-template.html" target="_blank" rel="noopener">Pyramid template</a></li>
+          <li><a href="/pyramid-template.html" target="_blank" rel="noopener">Pyramid template</a></li>
           <li>Works in Chrome, Safari and Edge on phones and laptops.</li>
         </ul>
       </div>
@@ -80,7 +88,7 @@
 
     <section class="how">
       <div class="step"><span>1</span><h3>Set up the glass</h3><p>Lay the phone or iPad flat and lean a clear acrylic sheet over it at 45°, resting on the far edge and rising towards you.</p></div>
-      <div class="step"><span>2</span><h3>Pair your laptop</h3><p>Open airpane.anchit-tandon.com/control on the laptop and type the 4-letter code shown on the phone.</p></div>
+      <div class="step"><span>2</span><h3>Pair your laptop</h3><p>On the laptop, open this page and press "Control it by hand from this laptop". Scan the QR code with the phone. Nothing to type.</p></div>
       <div class="step"><span>3</span><h3>Use it in the air</h3><p>Move an open hand to move the cursor, make a fist to click, move your index finger up or down to scroll, flick it left or right to go back or forward.</p></div>
     </section>
 
@@ -94,9 +102,9 @@
     <div id="pyr" class="pyr" hidden></div>
     <div id="glass" class="glass" hidden></div>
     <div id="glass-pair" class="glass-pair" hidden>
-      <p>Control from your laptop: open <b>airpane.anchit-tandon.com/control</b> and type</p>
+      <p><b>Hand control:</b> open <b>airpane.anchit-tandon.com</b> on a laptop, press <b>Control it by hand</b> and scan its QR code. Or type:</p>
       <div class="code" id="glass-code">....</div>
-      <p id="glass-pair-note">Or tap a link on this screen directly.</p>
+      <p id="glass-pair-note">Tap this card to hide it.</p>
     </div>
 
     <div class="hud-top">
@@ -138,6 +146,31 @@
   <div id="pyr-help" class="pyr-help" role="dialog" aria-modal="true" aria-labelledby="pyr-help-title" hidden>
     <div class="card">
       <h2 id="pyr-help-title">Set up the floating page</h2>
+      <figure id="help-art" class="help-art" hidden>
+        <svg viewBox="0 0 320 172" role="img" aria-labelledby="help-art-t">
+          <title id="help-art-t">Side view: the phone lies flat, a clear sheet leans over it at 45 degrees, and the page appears standing in the air behind the sheet.</title>
+          <defs>
+            <linearGradient id="ha-glow" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#7cf5d3" stop-opacity="0.55"/><stop offset="1" stop-color="#7cf5d3" stop-opacity="0"/></linearGradient>
+          </defs>
+          <line x1="8" y1="142" x2="312" y2="142" stroke="#2a3350" stroke-width="2"/>
+          <rect class="ha-phone" x="128" y="134" width="104" height="8" rx="3" fill="#1b2340" stroke="#58607a"/>
+          <rect class="ha-screen" x="132" y="133" width="96" height="3" rx="1.5" fill="#7cf5d3"/>
+          <polygon class="ha-light" points="132,133 228,133 228,98 132,98" fill="url(#ha-glow)"/>
+          <line class="ha-sheet" x1="236" y1="140" x2="148" y2="52" stroke="#a9c7ff" stroke-width="3" stroke-linecap="round" opacity="0.75"/>
+          <text x="244" y="150" class="ha-label">phone, flat</text>
+          <text x="92" y="44" class="ha-label">clear sheet, 45°</text>
+          <path class="ha-ray" d="M190 133 V94 H42" fill="none" stroke="#ffd166" stroke-width="2" stroke-dasharray="4 5"/>
+          <path class="ha-sight" d="M190 94 H229" fill="none" stroke="#ffd166" stroke-width="1.5" stroke-dasharray="2 5" opacity="0.7"/>
+          <g class="ha-ghost">
+            <rect x="229" y="38" width="7" height="96" rx="2" fill="#7cf5d3" opacity="0.85"/>
+            <rect x="229" y="38" width="7" height="96" rx="2" fill="none" stroke="#e6fff8" stroke-width="1"/>
+            <text x="244" y="80" class="ha-label ha-strong">the page</text>
+            <text x="244" y="93" class="ha-label ha-strong">floats here</text>
+          </g>
+          <g class="ha-eye" transform="translate(28 94)"><path d="M-12 0 Q0 -9 12 0 Q0 9 -12 0Z" fill="none" stroke="#e8ecf7" stroke-width="2"/><circle r="3.5" fill="#e8ecf7"/></g>
+          <text x="10" y="70" class="ha-label">your eyes, level</text><text x="10" y="82" class="ha-label">with the sheet</text>
+        </svg>
+      </figure>
       <ol id="help-steps">
         <li>Cut 4 trapezoids from clear plastic: <b>6 cm</b> wide at the bottom, <b>1 cm</b> at the top, <b>3.5 cm</b> tall. <a href="/pyramid-template.html" target="_blank" rel="noopener">Printable template</a></li>
         <li>Tape the long edges together into a pyramid.</li>

@@ -5,7 +5,7 @@ import {
 import { createHolo } from "./holo.js";
 import { createPyramid } from "./pyramid.js";
 import { createGlass } from "./glass.js";
-import { host } from "./link.js";
+import { host, cleanCode } from "./link.js";
 
 const $ = (id) => document.getElementById(id);
 const landing = $("landing"), ar = $("ar"), cam = $("cam"), stage = $("stage");
@@ -445,15 +445,16 @@ const HELP = {
   },
   glass: {
     hint: "Lean the clear sheet over the screen. Pair your laptop to control it by hand.",
-    steps: `<li>Lay this phone or iPad flat, screen up, brightness high, with the bottom edge of the screen towards you. Lock screen rotation first.</li>
-      <li>Lean a clear acrylic sheet (or a glass photo frame without its back) over it at about <b>45°</b>: bottom edge on the far side of the screen, top edge rising towards you.</li>
-      <li>Dim the room and sit so your eyes are level with the sheet. The page stands in the air behind it.</li>
-      <li>On your laptop open <b>airpane.anchit-tandon.com/control</b> and type the code shown here. Move an open hand to move the cursor, close it into a fist to click, move your index finger up or down to scroll, flick it left to go back or right to go forward.</li>`,
+    steps: `<li>Lay this phone or iPad flat, screen up, brightness high, bottom edge towards you. Lock screen rotation first.</li>
+      <li>Hold or lean something clear over it at about <b>45°</b>: bottom edge on the far side of the screen, top edge rising towards you. A clear plastic folder, a CD case lid or a photo-frame glass all work.</li>
+      <li>Dim the room and look through the sheet with your eyes level with it. The page stands in the air behind the sheet.</li>
+      <li>To control it by hand: on your laptop open <b>airpane.anchit-tandon.com</b>, press <b>Control it by hand</b> and scan the QR code with this phone. Open hand moves the cursor, a fist clicks, index finger up or down scrolls, a flick left or right goes back or forward.</li>`,
   },
 };
 function showHelp() {
   $("help-steps").innerHTML = (HELP[view] || HELP.pyramid).steps;
   $("help-noflip").hidden = view !== "glass";
+  $("help-art").hidden = view !== "glass";
   helpEl.hidden = false; $("pyr-help-ok").focus();
 }
 function hideHelp() {
@@ -476,7 +477,15 @@ async function startLink() {
   pairEl.hidden = false;
   try {
     link = await host({
-      onCode: (c) => { $("glass-code").textContent = c; },
+      code: pairCode,
+      onCode: (c) => {
+        $("glass-code").textContent = c;
+        // Opened from the laptop's QR code: the laptop is already waiting for this code.
+        if (pairCode && c === pairCode) $("glass-pair-note").textContent = "Connecting to your laptop...";
+        pairCode = "";
+        const q = new URLSearchParams(location.search);
+        if (q.has("pair")) { q.delete("pair"); const qs = q.toString(); history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "")); }
+      },
       onPeers: (n) => {
         link.peers = n;
         pairEl.hidden = n > 0 || view !== "glass";
@@ -563,6 +572,16 @@ addEventListener("popstate", (e) => {
   if (s.url && s.url !== current) loadURL(s.url, { push: false });
 });
 
+// ---------- opened by scanning the laptop's QR code ----------
+// airpane.anchit-tandon.com/?pair=ABCD: go straight to the floating glass and pair
+// under ABCD, which the laptop is already waiting for. Nothing to type on either side.
+let pairCode = cleanCode(new URLSearchParams(location.search).get("pair") || "");
+if (pairCode.length === 4) {
+  const r = document.querySelector('input[name="mode"][value="glass"]');
+  if (r) r.checked = true;
+  enterAR("https://en.m.wikipedia.org/wiki/Augmented_reality");
+} else pairCode = "";
+
 // ---------- wiring ----------
 $("launch-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -579,6 +598,8 @@ $("zoom-out").addEventListener("click", () => zoom(1.18));
 viewBtn.addEventListener("click", switchView);
 $("help-btn").addEventListener("click", showHelp);
 pairBtn.addEventListener("click", () => { pairEl.hidden = false; pokeUI(); });
+// The pairing card can be tapped away; "Pair laptop" brings it back.
+pairEl.addEventListener("click", () => { pairEl.hidden = true; pairBtn.hidden = Boolean(link && link.peers); });
 $("pyr-help-ok").addEventListener("click", () => { if (view === "glass") setFlip(true); hideHelp(); });
 $("help-noflip").addEventListener("click", () => { setFlip(false); hideHelp(); });
 flipBtn.addEventListener("click", () => setFlip(!glass.flipped));

@@ -12,17 +12,28 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/glass.css" />
   <link rel="stylesheet" href="/control/control.css" />
+  <script src="/vendor/qrcode.js" defer></script>
 </head>
 <body>
   <main class="ctl">
     <header class="top"><a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Airpane<span class="beta">controller</span></a></header>
 
     <section id="pair" class="card">
-      <h1>Control the floating page</h1>
-      <p class="muted">Type the 4-letter code shown on the phone or iPad under the glass.</p>
+      <h1>Pair your phone or iPad</h1>
+      <div class="qr-row">
+        <div id="qr" class="qr" role="img" aria-label="QR code that opens Airpane on your phone, already paired"></div>
+        <div class="qr-side">
+          <ol class="qr-steps">
+            <li>Point your phone's camera at this code.</li>
+            <li>Tap the link that pops up. The floating page opens on the phone and connects to this laptop by itself.</li>
+          </ol>
+          <p id="pair-status" class="pair-status" role="status"><span class="spin" aria-hidden="true"></span>Waiting for your phone</p>
+          <p class="muted small">No camera app handy? On the phone open <b>airpane.anchit-tandon.com</b>, choose Floating glass, then type the code it shows below.</p>
+        </div>
+      </div>
       <form id="pair-form" class="pair-form" autocomplete="off">
-        <label class="sr" for="code">Pairing code</label>
-        <input id="code" maxlength="4" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="ABCD" />
+        <label class="sr" for="code">Code shown on the phone</label>
+        <input id="code" maxlength="4" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="Code on the phone" />
         <button class="btn-primary" id="connect" type="submit">Connect</button>
       </form>
       <p id="pair-err" class="err" role="alert" hidden></p>

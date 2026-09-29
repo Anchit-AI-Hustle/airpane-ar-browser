@@ -55,3 +55,18 @@ body.big-view .pad-card, .pad-card:fullscreen { position: fixed; inset: 0; z-ind
 body.big-view .pad-head .muted { display: none; }
 body.big-view .pad-card > p { display: none; }
 body.big-view .pad { width: min(100%, calc((100vh - 70px) * (var(--ar)))); }
+/* Pairing: scan the QR code with the phone, nothing to type */
+#pair { max-width: 760px; }
+.qr-row { display: flex; gap: 22px; align-items: center; margin-top: 14px; }
+.qr { flex: none; width: 220px; height: 220px; border-radius: 14px; background: #fff; overflow: hidden; display: grid; place-items: center; }
+.qr svg { width: 100%; height: 100%; display: block; }
+.qr-side { min-width: 0; }
+.qr-steps { margin: 0 0 12px; padding-left: 20px; font-size: 16px; line-height: 1.5; }
+.qr-steps li + li { margin-top: 6px; }
+.pair-status { display: flex; align-items: center; gap: 8px; color: var(--mint); font-weight: 600; margin: 0 0 10px; }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(124, 245, 211, 0.3); border-top-color: var(--mint); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#pair .pair-form { margin-top: 16px; }
+#pair #code { font-size: 22px; letter-spacing: 0.12em; }
+#pair #code::placeholder { letter-spacing: 0; font-size: 16px; font-weight: 500; }
+@media (max-width: 600px) { .qr-row { flex-direction: column; align-items: stretch; } .qr { width: min(240px, 100%); height: auto; aspect-ratio: 1; margin: 0 auto; } }

@@ -69,7 +69,9 @@ async function t(name, fn) {
       const before = await p.evaluate(() => window.__airpane.state.glass.url);
       const pt = await p.evaluate(() => {
         const here = window.__airpane.state.glass.url.split("#")[0], d = document.querySelector(".g-doc").getBoundingClientRect();
-        const L = window.__airpane.glassLinks(80).find((l) => l.y > 0.2 && l.y < 0.75 && /^https?:/.test(l.href) && l.href.split("#")[0] !== here);
+        // a link the person can actually see (not under the pairing card or the controls)
+        const free = (l) => document.elementFromPoint(d.left + l.x * d.width, d.top + l.y * d.height)?.classList.contains("g-touch");
+        const L = window.__airpane.glassLinks(120).find((l) => l.y > 0.15 && l.y < 0.85 && /^https?:\/\/[a-z]+\.wikipedia\.org\/wiki\/[^:]+$/.test(l.href.split(/[?#]/)[0]) && new URL(l.href).pathname !== new URL(here).pathname && free(l));
         return L && { x: d.left + L.x * d.width, y: d.top + L.y * d.height };
       });
       assert.ok(pt, "no link on screen");
@@ -88,7 +90,7 @@ async function t(name, fn) {
         ev("pointerdown", cy); for (let i = 1; i <= 10; i++) ev("pointermove", cy - i * 20); ev("pointerup", cy - 200);
       }, { cx, cy });
       const y1 = await p.evaluate(() => window.__airpane.state.glass.y);
-      assert.ok(y1 > y0 + 100, `y ${y0} -> ${y1}`);
+      assert.ok(y1 > y0 + 100, `y ${y0} -> ${y1} ` + JSON.stringify(await p.evaluate(() => { const g = window.__airpane.state.glass; return { url: g.url, max: g.max, mode: g.mode }; })));
     });
 
     await t(`${label}: the "For clear sheet" switch flips the page back for the sheet, and is remembered`, async () => {
@@ -98,6 +100,8 @@ async function t(name, fn) {
       assert.equal(await p.evaluate(() => getComputedStyle(document.querySelector(".g-flip")).transform), "matrix(1, 0, 0, -1, 0, 0)");
       assert.equal(await p.textContent("#flip-btn"), "For clear sheet: on");
       await p.tap("#flip-btn");
+      // let any page still opening finish first, so the reload doesn't cut a request short
+      await p.waitForFunction(() => !window.__airpane.state.glass.loading, null, { timeout: 30000 });
       await p.reload({ waitUntil: "domcontentloaded" });
       await p.tap("#landing .chip >> text=Wikipedia");
       await p.waitForFunction(() => window.__airpane && window.__airpane.state.view === "glass");

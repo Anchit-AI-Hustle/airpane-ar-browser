@@ -115,7 +115,7 @@ export function createGlass(root, { onState } = {}) {
   };
 
   async function showPage(url, id) {
-    const r = await fetch("/api/page?url=" + encodeURIComponent(url));
+    const r = await fetch("/api/page?url=" + encodeURIComponent(url) + "&w=" + Math.round(doc.clientWidth || innerWidth));
     if (!r.ok) { let m = "Could not open that page"; try { m = (await r.json()).error || m; } catch {} throw new Error(m); }
     const html = await r.text();
     if (id !== loadId) return;

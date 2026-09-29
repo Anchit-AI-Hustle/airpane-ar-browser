@@ -30,7 +30,7 @@
 #ar.glassv #recenter-btn { display: none; }
 #ar.glassv.ui-hidden .hud-top, #ar.glassv.ui-hidden .dock, #ar.glassv.ui-hidden .hint { opacity: 0; pointer-events: none; }
 
-.glass-pair { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 76px); transform: translateX(-50%); z-index: 4; width: min(460px, calc(100% - 32px)); padding: 14px 16px; border-radius: 16px; background: rgba(13, 18, 36, 0.92); border: 1px solid rgba(124, 245, 211, 0.4); text-align: center; transition: opacity 0.4s; }
+.glass-pair { cursor: pointer; position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 76px); transform: translateX(-50%); z-index: 4; width: min(460px, calc(100% - 32px)); padding: 14px 16px; border-radius: 16px; background: rgba(13, 18, 36, 0.92); border: 1px solid rgba(124, 245, 211, 0.4); text-align: center; transition: opacity 0.4s; }
 .glass-pair[hidden] { display: none; }
 .glass-pair .code { font: 700 40px/1 var(--display); letter-spacing: 0.25em; color: var(--mint); margin: 6px 0 8px; padding-left: 0.25em; }
 .glass-pair p { margin: 0; color: #c9d0e3; font-size: 14px; line-height: 1.45; }

@@ -30,11 +30,14 @@ function loadPeer() {
 }
 
 // Display side: listen under a short code. Calls onMessage(msg, reply) for each message.
-export async function host({ onCode, onMessage, onPeers }) {
+// A laptop that shows a QR code picks the code itself and the phone that scans it
+// listens under that code (`code`); otherwise a fresh one is made here.
+export async function host({ code: wanted, onCode, onMessage, onPeers }) {
   const Peer = await loadPeer();
   let peer, code, conns = new Set();
+  wanted = cleanCode(wanted);
   for (let attempt = 0; attempt < 5; attempt++) {
-    code = newCode();
+    code = wanted.length === 4 && attempt === 0 ? wanted : newCode();
     try {
       peer = await new Promise((ok, bad) => {
         const p = new Peer(peerId(code), peerOpts());
@@ -58,20 +61,40 @@ export async function host({ onCode, onMessage, onPeers }) {
   };
 }
 
-// Controller side: connect to a display by its code.
-export async function join(code, { onMessage, onClose }) {
+// Controller side: connect to a display by its code. With `wait` (ms) it keeps trying
+// until a display with that code appears, e.g. while the phone opens the scanned link.
+export async function join(code, { onMessage, onClose, wait = 0, signal } = {}) {
   const Peer = await loadPeer();
   const peer = await new Promise((ok, bad) => {
     const p = new Peer(undefined, peerOpts());
     p.on("open", () => ok(p));
     p.on("error", bad);
   });
-  const conn = await new Promise((ok, bad) => {
+  const NOPE = "No display with that code. Check the code on the floating screen.";
+  const tryOnce = () => new Promise((ok, bad) => {
     const c = peer.connect(peerId(code), { reliable: true });
-    const t = setTimeout(() => bad(new Error("No display with that code. Check the code on the floating screen.")), 12000);
-    c.on("open", () => { clearTimeout(t); ok(c); });
-    peer.on("error", (e) => { clearTimeout(t); bad(e.type === "peer-unavailable" ? new Error("No display with that code. Check the code on the floating screen.") : e); });
+    const done = (fn, v) => { clearTimeout(t); peer.off("error", onErr); fn(v); };
+    // The broker answers "peer-unavailable" at once when no display has the code yet;
+    // a display that exists gets the full time to finish connecting.
+    const t = setTimeout(() => { try { c.close(); } catch {} done(bad, new Error(NOPE)); }, 15000);
+    const onErr = (e) => {
+      if (e.type === "peer-unavailable" && !String(e.message || "").includes(peerId(code))) return;
+      done(bad, e.type === "peer-unavailable" ? new Error(NOPE) : e);
+    };
+    c.on("open", () => done(ok, c));
+    peer.on("error", onErr);
   });
+  const until = Date.now() + wait;
+  let conn;
+  for (;;) {
+    try { conn = await tryOnce(); break; }
+    catch (e) {
+      if (signal && signal.aborted) { try { peer.destroy(); } catch {} throw new Error("Stopped"); }
+      if (e.message !== NOPE || Date.now() > until) { try { peer.destroy(); } catch {} throw e; }
+      await new Promise((r) => setTimeout(r, 1000));
+      if (signal && signal.aborted) { try { peer.destroy(); } catch {} throw new Error("Stopped"); }
+    }
+  }
   conn.on("data", (m) => onMessage && onMessage(m));
   conn.on("close", () => onClose && onClose());
   return { send: (m) => conn.open && conn.send(m), close: () => { try { peer.destroy(); } catch {} } };

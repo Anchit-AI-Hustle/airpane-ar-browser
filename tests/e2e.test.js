@@ -92,7 +92,7 @@ async function t(name, fn) {
         const a = document.querySelector('p a[href$="/wiki/Virtual_reality"]');
         a.scrollIntoView({ block: "center" });
         const r = a.getBoundingClientRect();
-        return { x: r.left + Math.min(12, r.width / 2), y: r.top + r.height / 2 };
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
       });
       await page.waitForTimeout(300);
       const pt = await page.evaluate(({ x, y }) => {
@@ -434,7 +434,7 @@ async function t(name, fn) {
     // is on the display's own screen (the page is flipped top-to-bottom for the sheet).
     const linkPoint = () => disp.evaluate(() => {
       const here = window.__airpane.state.glass.url.split("#")[0];
-      const L = window.__airpane.glassLinks(80).find((l) => l.y > 0.1 && l.y < 0.9 && /^https?:/.test(l.href) && l.href.split("#")[0] !== here && l.text.length > 1);
+      const L = window.__airpane.glassLinks(80).find((l) => l.y > 0.1 && l.y < 0.9 && /^https?:/.test(l.href) && new URL(l.href).pathname !== new URL(here).pathname && l.text.length > 1);
       if (!L) return null;
       const d = document.querySelector(".g-doc").getBoundingClientRect(), flip = window.__airpane.state.glass.flip;
       return { ...L, sx: d.left + L.x * d.width, sy: flip ? d.bottom - L.y * d.height : d.top + L.y * d.height };
@@ -610,7 +610,46 @@ async function t(name, fn) {
     });
 
     await t("glass + controller: zero console errors", async () => { assert.deepEqual(disp.__errors, []); assert.deepEqual(ctl.__errors, []); });
-    await dctx.close(); await cctx.close(); await ctlBrowser.close();
+    await dctx.close(); await cctx.close();
+    await t("pairing without typing: the laptop shows a QR code, the phone opens it and both connect", async () => {
+      const c2 = await ctlBrowser.newContext({ viewport: { width: 1280, height: 860 }, permissions: ["camera"], ignoreHTTPSErrors: true });
+      const d2 = await browser.newContext({ ...devices["Pixel 7"], ignoreHTTPSErrors: true });
+      const lap = await c2.newPage(), phone = await d2.newPage();
+      const errs = [];
+      for (const pg of [lap, phone]) pg.on("pageerror", (e) => errs.push(e.message));
+      // Start from the home page, as a person would: one button, no URL to type.
+      await lap.goto(BASE + "/" + PQ, { waitUntil: "load" });
+      await lap.click(".ctl-cta");
+      await lap.waitForURL(/\/control/);
+      if (!/peer=/.test(lap.url())) await lap.goto(BASE + "/control" + PQ, { waitUntil: "load" });
+      await lap.waitForSelector("#qr svg", { timeout: 15000 });
+      const qr = await lap.evaluate(() => window.__ctl.qr);
+      assert.match(qr.url, /\/\?pair=[A-Z]{4}/);
+      const box = await lap.locator("#qr").boundingBox();
+      assert.ok(box.width >= 180, "QR code too small to scan: " + box.width);
+      await lap.screenshot({ path: `${SHOTS}/pair-1-laptop-qr.png` });
+      // The phone "scans" it: its camera app opens this link.
+      await phone.goto(qr.url, { waitUntil: "load" });
+      await phone.waitForFunction(() => window.__airpane && window.__airpane.state.view === "glass" && window.__airpane.state.running, null, { timeout: 20000 });
+      assert.equal(await phone.isVisible("#help-art"), true, "the animated set-up guide should show");
+      await phone.screenshot({ path: `${SHOTS}/pair-2-phone-help.png` });
+      await lap.waitForSelector("#panel:not([hidden])", { timeout: 40000 });
+      await phone.waitForFunction(() => window.__airpane.state.peers === 1, null, { timeout: 20000 });
+      assert.equal(await phone.evaluate(() => window.__airpane.state.code), qr.code);
+      assert.doesNotMatch(phone.url(), /pair=/, "pair code should be removed from the address");
+      // and it really controls it
+      await phone.click("#pyr-help-ok");
+      await phone.waitForFunction(() => !window.__airpane.state.glass.loading && window.__airpane.state.glass.url, null, { timeout: 30000 });
+      const y0 = (await phone.evaluate(() => window.__airpane.state.glass)).y;
+      await lap.evaluate(() => document.getElementById("pad").scrollIntoView({ block: "center" })); const pad = await lap.locator("#pad").boundingBox();
+      await lap.mouse.move(pad.x + pad.width / 2, pad.y + pad.height / 2);
+      await lap.mouse.wheel(0, 600);
+      await phone.waitForFunction((y) => window.__airpane.state.glass.y > y + 50, y0, { timeout: 15000 });
+      assert.deepEqual(errs, []);
+      await c2.close(); await d2.close();
+    });
+
+    await ctlBrowser.close();
     try { peerSrv.close && peerSrv.close(); peerSrv._server && peerSrv._server.close(); } catch {}
   }
 

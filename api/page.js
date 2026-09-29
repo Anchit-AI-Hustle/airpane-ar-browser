@@ -18,8 +18,22 @@ const NO_JS_FIXES = `
   a.airpane-hover { outline: 4px solid #7cf5d3 !important; outline-offset: 2px; background: rgba(124, 245, 211, 0.28) !important; border-radius: 4px; }
 `;
 
-async function buildPage(url) {
-  const { html, finalUrl } = await fetchPage(url);
+// Wikipedia now sends its desktop layout to everyone, and without its scripts that
+// layout falls apart on a phone. On narrow screens ask for its mobile layout instead.
+function forWidth(url, w) {
+  try {
+    const u = new URL(url);
+    if (w && w < 800 && /(^|\.)wikipedia\.org$/.test(u.hostname) && !u.searchParams.has("useskin")) {
+      u.hostname = u.hostname.replace(/\.m\.wikipedia\.org$/, ".wikipedia.org");
+      u.searchParams.set("useskin", "minerva");
+      return u.toString();
+    }
+  } catch {}
+  return url;
+}
+
+async function buildPage(url, w) {
+  const { html, finalUrl } = await fetchPage(forWidth(url, w));
   await loadDom();
   const { document } = parseHTML(html);
   const head = document.head || document.documentElement;
@@ -63,12 +77,13 @@ async function buildPage(url) {
 }
 
 module.exports = async (req, res) => {
-  const target = new URL(req.url, "http://local").searchParams.get("url");
+  const params = new URL(req.url, "http://local").searchParams;
+  const target = params.get("url"), width = parseInt(params.get("w"), 10) || 0;
   res.setHeader("Cache-Control", "no-store");
   if (!target) { res.statusCode = 400; res.setHeader("Content-Type", "application/json"); return res.end(JSON.stringify({ error: "Missing url" })); }
   try {
     await assertPublicUrl(target);
-    const { html, finalUrl, title } = await buildPage(target);
+    const { html, finalUrl, title } = await buildPage(target, width);
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("X-Final-Url", encodeURIComponent(finalUrl));

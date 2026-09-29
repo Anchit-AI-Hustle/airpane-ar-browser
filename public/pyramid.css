@@ -37,3 +37,17 @@
 .mode-opt input:checked + span { border-color: rgba(124, 245, 211, 0.7); background: rgba(124, 245, 211, 0.08); }
 .mode-opt input:focus-visible + span { outline: 2px solid var(--mint); outline-offset: 2px; }
 @media (max-width: 380px) { .modes { grid-template-columns: 1fr; } }
+/* Animated side view of the clear-sheet set-up (Floating glass help) */
+.help-art { margin: 0 0 14px; padding: 8px; border-radius: 12px; background: #070b18; border: 1px solid var(--line); }
+.help-art[hidden] { display: none; }
+.help-art svg { display: block; width: 100%; height: auto; }
+.ha-label { fill: #aab3c8; font: 500 10.5px var(--font); }
+.ha-strong { fill: #7cf5d3; font-weight: 700; }
+.ha-screen, .ha-light { animation: ha-screen 4.8s ease-in-out infinite; }
+.ha-ray { stroke-dashoffset: 0; animation: ha-ray 4.8s linear infinite; }
+.ha-sight { animation: ha-ghost 4.8s ease-in-out infinite; }
+.ha-ghost { animation: ha-ghost 4.8s ease-in-out infinite; }
+@keyframes ha-screen { 0%, 8% { opacity: 0.25; } 20%, 100% { opacity: 1; } }
+@keyframes ha-ray { 0%, 15% { opacity: 0; stroke-dashoffset: 40; } 25% { opacity: 1; } 100% { opacity: 1; stroke-dashoffset: -60; } }
+@keyframes ha-ghost { 0%, 42% { opacity: 0; } 60%, 92% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ha-screen, .ha-light, .ha-ray, .ha-sight, .ha-ghost { animation: none; opacity: 1; } }
