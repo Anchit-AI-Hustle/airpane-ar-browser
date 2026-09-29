@@ -24,7 +24,7 @@ ffed5925a4aa660f7e8342a4f0c10211e26442fa airpane_desktop/server.py
 513bbe1b48a811bc0d31d209026f4629b4c33a32 airpane_desktop/ui/app.css
 0388d97f8d3667bbd5ecabaa0d87513ccc02fc24 airpane_desktop/ui/app.js
 8889a63791fd6670a4fba5f98f4150e1a17d2018 airpane_desktop/ui/index.html
-06b18e3d12bbee58da83a50870bac433633a0709 requirements.txt
+345f07428d2a9479720ccea61db6bdd95d136a51 requirements.txt
 '
 # --- end files ---
 rm -rf "$DIR/app.new"; mkdir -p "$DIR/app.new"
