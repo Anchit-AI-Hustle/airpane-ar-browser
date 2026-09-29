@@ -1,7 +1,9 @@
 // Real browser + real MediaPipe hand tracking + a fake webcam of real hand photos:
 // the index finger must scroll the floating page and a fist must click. (Swipes need a faster
 // machine than this sandbox; they are covered with real recorded hands in gestures.test.mjs.)
-const { chromium } = require("playwright");
+const { chromium, devices } = require("playwright");
+// MOBILE=1 runs both the display and the controller as phones (Pixel 7, touch).
+const MOBILE = process.env.MOBILE === "1";
 const assert = require("node:assert/strict");
 const { spawn, execSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -28,8 +30,8 @@ async function t(name, fn) {
 
   const dispB = await chromium.launch({ proxy });
   const ctlB = await chromium.launch({ proxy, args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${VID}`, "--disable-gpu"] });
-  const disp = await (await dispB.newContext({ viewport: { width: 1180, height: 820 }, ignoreHTTPSErrors: true })).newPage();
-  const ctl = await (await ctlB.newContext({ viewport: { width: 1280, height: 860 }, permissions: ["camera"], ignoreHTTPSErrors: true })).newPage();
+  const disp = await (await dispB.newContext(MOBILE ? { ...devices["Pixel 7"], ignoreHTTPSErrors: true } : { viewport: { width: 1180, height: 820 }, ignoreHTTPSErrors: true })).newPage();
+  const ctl = await (await ctlB.newContext(MOBILE ? { ...devices["Pixel 7"], permissions: ["camera"], ignoreHTTPSErrors: true } : { viewport: { width: 1280, height: 860 }, permissions: ["camera"], ignoreHTTPSErrors: true })).newPage();
   const errs = [];
   for (const pg of [disp, ctl]) {
     pg.on("pageerror", (e) => errs.push(e.message));
@@ -41,7 +43,7 @@ async function t(name, fn) {
     await disp.click("#landing .chip >> text=Wikipedia");
     await disp.click("#pyr-help-ok");
     await disp.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById("glass-code").textContent), null, { timeout: 30000 });
-    await disp.waitForFunction(() => /Augmented reality/i.test(document.querySelector(".g-content h1")?.textContent || ""), null, { timeout: 30000 });
+    await disp.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && g.mode === "page" && /Augmented reality/i.test(g.title); }, null, { timeout: 30000 });
     const code = await disp.textContent("#glass-code");
     await ctl.goto(BASE + "/control" + PQ, { waitUntil: "load" });
     await ctl.fill("#code", code);

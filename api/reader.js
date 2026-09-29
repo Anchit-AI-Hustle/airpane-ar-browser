@@ -144,3 +144,4 @@ module.exports = async (req, res) => {
   }
 };
 module.exports.read = read;
+module.exports.fetchPage = fetchPage;

@@ -1,7 +1,7 @@
 /* ---------- Floating glass (phone or iPad flat, clear sheet at 45 degrees) ---------- */
 #ar.glassv { background: #000; }
 #ar.glassv #cam, #ar.glassv #stage { display: none; }
-.glass { position: absolute; inset: 0; overflow: hidden; background: #000; touch-action: none; }
+.glass { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #000; touch-action: none; }
 .glass[hidden] { display: none; }
 .g-flip { position: absolute; inset: 0; transform: scaleY(-1); }
 .g-doc { position: absolute; inset: 0; overflow: hidden; }
@@ -35,3 +35,16 @@
 .glass-pair .code { font: 700 40px/1 var(--display); letter-spacing: 0.25em; color: var(--mint); margin: 6px 0 8px; padding-left: 0.25em; }
 .glass-pair p { margin: 0; color: #c9d0e3; font-size: 14px; line-height: 1.45; }
 .glass-pair b { color: #fff; }
+/* Read directly on this screen (no clear sheet): the page is drawn the right way up. */
+.glass.noflip .g-flip { transform: none; }
+.glass-only { display: none; }
+#ar.glassv .glass-only { display: inline-flex; }
+.help-actions { position: sticky; bottom: 0; display: grid; gap: 8px; background: #0d1224; box-shadow: 0 0 0 14px #0d1224; }
+.help-actions .btn-primary { width: 100%; }
+.help-actions .chip { justify-content: center; padding: 11px 13px; font-size: 14px; }
+.help-actions .chip[hidden] { display: none; }
+/* The real page, in a sandboxed frame; touches go to the overlay so Airpane handles them. */
+.g-page { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+.g-page[hidden] { display: none; }
+.g-touch { position: absolute; inset: 0; z-index: 1; }
+.g-cursor { z-index: 3; }

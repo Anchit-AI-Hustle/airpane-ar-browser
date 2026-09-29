@@ -430,16 +430,18 @@ async function t(name, fn) {
     disp.setDefaultTimeout(30000); ctl.setDefaultTimeout(30000);
     const G = () => disp.evaluate(() => window.__airpane.state.glass);
     // centre of the first visible link, as a 0..1 point on the page the viewer sees
+    // A link on the floating page, as a 0..1 point of the page the viewer sees, plus where it
+    // is on the display's own screen (the page is flipped top-to-bottom for the sheet).
     const linkPoint = () => disp.evaluate(() => {
-      const doc = document.querySelector(".g-doc").getBoundingClientRect();
-      for (const a of document.querySelectorAll(".g-link")) {
-        const r = a.getClientRects()[0]; if (!r || r.width < 20) continue;
-        // the page is flipped top-to-bottom, so viewer y is measured from the bottom of the screen
-        const x = (r.left + Math.min(r.width / 2, 40) - doc.left) / doc.width, y = (doc.bottom - (r.top + r.height / 2)) / doc.height;
-        if (y > 0.08 && y < 0.95 && x > 0.02 && x < 0.95) return { x, y, text: a.textContent, href: a.dataset.href, sx: r.left + Math.min(r.width / 2, 40), sy: r.top + r.height / 2 };
-      }
-      return null;
+      const here = window.__airpane.state.glass.url.split("#")[0];
+      const L = window.__airpane.glassLinks(80).find((l) => l.y > 0.1 && l.y < 0.9 && /^https?:/.test(l.href) && l.href.split("#")[0] !== here && l.text.length > 1);
+      if (!L) return null;
+      const d = document.querySelector(".g-doc").getBoundingClientRect(), flip = window.__airpane.state.glass.flip;
+      return { ...L, sx: d.left + L.x * d.width, sy: flip ? d.bottom - L.y * d.height : d.top + L.y * d.height };
     });
+    // The real page inside the floating glass
+    const pageText = (pg, sel) => pg.evaluate((sel) => { const d = document.querySelector(sel)?.contentDocument; return d && d.body ? d.body.innerText : ""; }, sel);
+    const hovered = (pg, sel) => pg.evaluate((sel) => document.querySelector(sel)?.contentDocument?.querySelector("a.airpane-hover")?.textContent || "", sel);
 
     await t("glass: is the default, opens without the camera and shows a pairing code", async () => {
       await disp.goto(BASE + "/" + PQ, { waitUntil: "load" });
@@ -451,10 +453,14 @@ async function t(name, fn) {
       await disp.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById("glass-code").textContent), null, { timeout: 30000 });
     });
 
-    await t("glass: the page is rendered as clean, readable content, flipped for the reflection", async () => {
-      await disp.waitForFunction(() => /Augmented reality/i.test(document.querySelector(".g-content h1")?.textContent || ""), null, { timeout: 30000 });
+    await t("glass: the real page is shown with its own colours and layout, flipped for the reflection", async () => {
+      await disp.waitForFunction(() => { const g = window.__airpane.state.glass; return g.mode === "page" && !g.loading && /Augmented reality/i.test(g.title); }, null, { timeout: 30000 });
+      assert.match(await pageText(disp, "#glass .g-page"), /Augmented reality/i);
       assert.equal(await disp.evaluate(() => getComputedStyle(document.querySelector(".g-flip")).transform), "matrix(1, 0, 0, -1, 0, 0)");
-      assert.ok((await disp.locator(".g-link").count()) > 50, "links missing");
+      const st = await disp.evaluate(() => { const d = document.querySelector("#glass .g-page").contentDocument; return { links: d.querySelectorAll("a[href]").length, sheets: d.styleSheets.length, scripts: d.querySelectorAll("script").length }; });
+      assert.ok(st.links > 50, "links missing " + JSON.stringify(st));
+      assert.ok(st.sheets > 0, "the site's own styles are missing");
+      assert.equal(st.scripts, 0);
       await disp.waitForTimeout(600);
       await disp.screenshot({ path: `${SHOTS}/glass-1-display.png` });
     });
@@ -462,8 +468,9 @@ async function t(name, fn) {
     await t("glass: tapping a link directly on the display opens it", async () => {
       const L = await linkPoint();
       assert.ok(L, "no visible link");
+      const before = (await G()).url;
       await disp.mouse.click(L.sx, L.sy);
-      await disp.waitForFunction((h) => window.__airpane.state.glass.url.split("#")[0] !== "" && !window.__airpane.state.glass.loading && window.__airpane.state.glass.url !== "https://en.wikipedia.org/wiki/Augmented_reality", L.href, { timeout: 30000 });
+      await disp.waitForFunction((b) => window.__airpane.state.glass.url !== b && !window.__airpane.state.glass.loading, before, { timeout: 30000 });
       await disp.evaluate(() => document.getElementById("back-btn")); // no-op, keeps timing stable
       await disp.evaluate(() => window.__airpane && null);
       await disp.evaluate(() => { /* go back to the article for the controller tests */ });
@@ -491,8 +498,11 @@ async function t(name, fn) {
       const L = await linkPoint();
       await ctl.locator("#pad").scrollIntoViewIfNeeded(); const pad = await ctl.locator("#pad").boundingBox();
       await ctl.mouse.move(pad.x + L.x * pad.width, pad.y + L.y * pad.height, { steps: 4 });
-      await disp.waitForFunction(() => document.querySelector(".g-link.hover"), null, { timeout: 10000 });
+      await disp.waitForFunction(() => document.querySelector("#glass .g-page").contentDocument.querySelector("a.airpane-hover"), null, { timeout: 10000 });
       assert.equal(await disp.isVisible(".g-cursor"), true);
+      // the live view on the laptop highlights the same link
+      await ctl.waitForFunction(() => document.querySelector("#mirror .g-page").contentDocument?.querySelector("a.airpane-hover"), null, { timeout: 10000 });
+      assert.equal(await hovered(ctl, "#mirror .g-page"), await hovered(disp, "#glass .g-page"));
       await ctl.waitForFunction(() => /Make a fist to open/.test(document.getElementById("now-hover").textContent), null, { timeout: 10000 });
       await disp.screenshot({ path: `${SHOTS}/glass-2-hover.png` });
     });
@@ -524,31 +534,52 @@ async function t(name, fn) {
 
     await t("controller: live view shows the same page as the glass, same scroll and shape", async () => {
       for (let i = 0; i < 2; i++) { await ctl.keyboard.press("PageDown"); await ctl.waitForTimeout(120); }
-      await ctl.waitForFunction(() => { const m = window.__ctl.state.mirror; return m.loaded && m.y > 0 && document.querySelector("#mirror .g-content h1"); }, null, { timeout: 30000 });
-      const d = await disp.evaluate(() => ({ g: window.__airpane.state.glass, h1: document.querySelector(".g-content h1").textContent, links: document.querySelectorAll(".g-content .g-link").length }));
-      const c = await ctl.evaluate(() => { const p = document.getElementById("pad").getBoundingClientRect(); return { m: window.__ctl.state.mirror, h1: document.querySelector("#mirror .g-content h1").textContent, links: document.querySelectorAll("#mirror .g-link").length, ar: p.width / p.height, empty: document.getElementById("pad-empty").hidden, box: document.querySelector("#mirror .m-box").getBoundingClientRect().width / p.width }; });
-      assert.equal(c.m.loaded, d.g.url, "mirror shows another page");
-      assert.equal(c.h1, d.h1);
+      await ctl.waitForFunction(() => { const m = window.__ctl.state.mirror; return m.mode === "page" && m.y > 0 && Math.abs(document.querySelector("#mirror .g-page").contentWindow.scrollY - m.y) < 2; }, null, { timeout: 30000 });
+      const d = await disp.evaluate(() => { const f = document.querySelector("#glass .g-page"); return { g: window.__airpane.state.glass, links: f.contentDocument.querySelectorAll("a[href]").length, bg: getComputedStyle(f.contentDocument.body).backgroundColor }; });
+      const c = await ctl.evaluate(() => { const p = document.getElementById("pad").getBoundingClientRect(), f = document.querySelector("#mirror .g-page"); return { m: window.__ctl.state.mirror, links: f.contentDocument.querySelectorAll("a[href]").length, bg: getComputedStyle(f.contentDocument.body).backgroundColor, sy: f.contentWindow.scrollY, ar: p.width / p.height, empty: document.getElementById("pad-empty").hidden, box: document.querySelector("#mirror .m-box").getBoundingClientRect().width / p.width }; });
+      assert.equal(c.m.url, d.g.url, "mirror shows another page");
       assert.equal(c.links, d.links);
-      assert.equal(Math.round(c.m.y), Math.round(d.g.y), "scroll out of sync");
+      assert.equal(c.bg, d.bg, "colours differ");
+      assert.equal(await pageText(ctl, "#mirror .g-page"), await pageText(disp, "#glass .g-page"));
+      assert.ok(Math.abs(c.sy - d.g.y) < 2, `scroll out of sync ${c.sy} ${d.g.y}`);
       assert.ok(Math.abs(c.ar - d.g.view.w / d.g.view.h) < 0.02, "pad shape differs from the display: " + c.ar);
       assert.ok(Math.abs(c.box - 1) < 0.01, "mirror not fitted to the pad: " + c.box);
       assert.equal(c.empty, true, "placeholder still covers the live view");
       await ctl.locator("#pad").scrollIntoViewIfNeeded();
       await ctl.locator(".pad-card").screenshot({ path: `${SHOTS}/glass-4-live-view.png` });
       await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp");
-      const fs0 = c.m.view.fs;
+      const z0 = c.m.view.zoom;
       await ctl.click("#bigger");
-      await ctl.waitForFunction((f) => window.__ctl.state.mirror.view.fs > f + 0.5, fs0, { timeout: 10000 });
-      const fsD = await disp.evaluate(() => parseFloat(getComputedStyle(document.querySelector(".g-content")).fontSize));
-      assert.ok(Math.abs((await ctl.evaluate(() => window.__ctl.state.mirror.view.fs)) - fsD) < 0.01, "text size out of sync");
+      await ctl.waitForFunction((z) => window.__ctl.state.mirror.view.zoom > z + 0.02, z0, { timeout: 10000 });
+      const zD = await disp.evaluate(() => document.querySelector("#glass .g-page").contentDocument.documentElement.style.zoom);
+      await ctl.waitForFunction((z) => document.querySelector("#mirror .g-page").contentDocument.documentElement.style.zoom === z, zD, { timeout: 5000 });
       await ctl.click("#smaller");
+    });
+
+    await t("controller: Full screen makes the live view fill the laptop screen, Esc leaves", async () => {
+      await ctl.click("#big");
+      await ctl.waitForFunction(() => window.__ctl.state.big);
+      await ctl.waitForTimeout(300);
+      const r = await ctl.evaluate(() => { const p = document.getElementById("pad").getBoundingClientRect(); return { w: p.width, h: p.height, W: innerWidth, H: innerHeight, k: document.querySelector("#mirror .m-box").getBoundingClientRect().width / p.width }; });
+      assert.ok(r.w > r.W * 0.9 || r.h > r.H * 0.85, "live view not full screen " + JSON.stringify(r));
+      assert.ok(Math.abs(r.k - 1) < 0.01, "mirror not refitted " + r.k);
+      await ctl.screenshot({ path: `${SHOTS}/glass-5-full-screen.png` });
+      // the pad still drives the floating page in full screen
+      const y0 = (await G()).y;
+      const pad = await ctl.locator("#pad").boundingBox();
+      await ctl.mouse.move(pad.x + pad.width / 2, pad.y + pad.height / 2);
+      await ctl.mouse.wheel(0, 500);
+      await disp.waitForFunction((y) => window.__airpane.state.glass.y > y + 50, y0, { timeout: 10000 });
+      await ctl.keyboard.press("Escape");
+      await ctl.waitForFunction(() => !window.__ctl.state.big);
+      await ctl.keyboard.press("PageUp"); await ctl.keyboard.press("PageUp");
     });
 
     await t("controller: opening a site from the laptop shows it in the air", async () => {
       await ctl.fill("#go-url", "example.com");
       await ctl.press("#go-url", "Enter");
-      await disp.waitForFunction(() => /Example Domain/.test(document.querySelector(".g-content h1")?.textContent || ""), null, { timeout: 30000 });
+      await disp.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && /Example Domain/.test(g.title); }, null, { timeout: 30000 });
+      assert.match(await pageText(disp, "#glass .g-page"), /documentation examples/);
       await ctl.waitForFunction(() => /Example Domain/.test(document.getElementById("now-title").textContent), null, { timeout: 10000 });
     });
 
@@ -563,6 +594,19 @@ async function t(name, fn) {
       assert.equal(await disp.isVisible(".g-cursor"), true);
       await ctl.evaluate(() => scrollTo(0, 0));
       await ctl.screenshot({ path: `${SHOTS}/glass-3-controller.png` });
+    });
+
+    await t("controller: with the page shown the right way up (no sheet), the laptop cursor still lands on links", async () => {
+      await disp.evaluate(() => document.getElementById("ar").classList.remove("ui-hidden"));
+      await disp.click("#flip-btn");
+      assert.equal(await disp.evaluate(() => window.__airpane.state.glass.flip), false);
+      const L = await linkPoint();
+      assert.ok(L, "no visible link");
+      await ctl.locator("#pad").scrollIntoViewIfNeeded(); const pad = await ctl.locator("#pad").boundingBox();
+      await ctl.mouse.move(pad.x + L.x * pad.width, pad.y + L.y * pad.height, { steps: 4 });
+      await disp.waitForFunction((t) => (document.querySelector("#glass .g-page").contentDocument.querySelector("a.airpane-hover")?.textContent || "").trim().startsWith(t.slice(0, 20)), L.text, { timeout: 10000 });
+      await disp.click("#flip-btn"); // back to the sheet view for the remaining tests
+      await ctl.mouse.move(5, 5);
     });
 
     await t("glass + controller: zero console errors", async () => { assert.deepEqual(disp.__errors, []); assert.deepEqual(ctl.__errors, []); });

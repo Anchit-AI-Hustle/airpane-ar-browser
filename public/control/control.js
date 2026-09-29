@@ -13,7 +13,7 @@ const video = $("video"), overlay = $("overlay"), ctx = overlay.getContext("2d")
 let link = null, handsOn = true, landmarker = null, stream = null, lastSent = 0, lastCur = null;
 const gestures = createGestures();
 const S = { hand: false, pinched: false, events: { cur: 0, click: 0, scroll: 0 } };
-window.__ctl = { get state() { return { connected: Boolean(link), handsOn, mirror: { url: M.url, loaded: M.loaded, y: M.y, view: M.view }, detector: Boolean(landmarker), camera: Boolean(stream), ...S, gesture: gestures.state }; } };
+window.__ctl = { get state() { return { connected: Boolean(link), handsOn, mirror: { url: M.url, loaded: M.loaded, mode: M.mode, y: M.y, view: M.view }, big: document.body.classList.contains("big-view"), detector: Boolean(landmarker), camera: Boolean(stream), ...S, gesture: gestures.state }; } };
 
 function send(m) { if (link) link.send(m); }
 
@@ -52,7 +52,8 @@ function onState(m) {
 // Laid out at the display's own size and text size, then scaled to fit the pad, so
 // scroll position and cursor position match the floating page exactly.
 const mBox = document.querySelector("#mirror .m-box"), mContent = document.querySelector("#mirror .g-content");
-const M = { url: "", loaded: "", pending: "", view: null, y: 0, hover: "" };
+const mFrame = document.querySelector("#mirror .g-page");
+const M = { url: "", loaded: "", pending: "", view: null, y: 0, hover: "", mode: "" };
 let mirrorReq = 0;
 function mirror(m) {
   const empty = $("pad-empty");
@@ -60,36 +61,66 @@ function mirror(m) {
     M.view = m.view;
     pad.style.setProperty("--ar", `${m.view.w} / ${m.view.h}`);
     mBox.style.width = m.view.w + "px"; mBox.style.height = m.view.h + "px";
-    mContent.style.fontSize = m.view.fs + "px"; mContent.style.padding = m.view.pad;
-    mContent.style.setProperty("--img-h", Math.round(Math.min(m.view.w, m.view.h) * 0.3) + "px");
+    if (m.view.mode !== "page") {
+      mContent.style.fontSize = m.view.fs + "px"; mContent.style.padding = m.view.pad;
+      mContent.style.setProperty("--img-h", Math.round(Math.min(m.view.w, m.view.h) * 0.3) + "px");
+    }
     fitMirror();
   }
   M.y = +m.y || 0; M.hover = m.hover || "";
-  if (m.loading) { empty.textContent = "Opening the page"; empty.hidden = false; mContent.innerHTML = ""; M.loaded = ""; M.pending = ""; mirrorReq++; }
-  else if (m.error) { empty.textContent = "Could not open this page: " + m.error; empty.hidden = false; mContent.innerHTML = ""; M.loaded = ""; }
-  else if (m.url && m.url !== M.loaded && m.url !== M.pending) loadMirror(m.url);
+  const mode = m.mode === "page" ? "page" : "reader";
+  const key = mode + " " + (m.url || "");
+  if (m.loading) { empty.textContent = "Opening the page"; empty.hidden = false; clearMirror(); M.loaded = ""; M.pending = ""; mirrorReq++; }
+  else if (m.error) { empty.textContent = "Could not open this page: " + m.error; empty.hidden = false; clearMirror(); M.loaded = ""; }
+  else if (m.url && key !== M.loaded && key !== M.pending) loadMirror(m.url, mode, key);
   else if (!m.url) { empty.textContent = "Open a site above to start"; empty.hidden = false; }
   M.url = m.url || "";
   paintMirror();
 }
-async function loadMirror(url) {
+function clearMirror() { mContent.innerHTML = ""; mFrame.hidden = true; mFrame.removeAttribute("srcdoc"); M.mode = ""; }
+async function loadMirror(url, mode, key) {
   const id = ++mirrorReq;
-  M.pending = url;
+  M.pending = key;
   try {
-    const r = await fetch("/api/reader?url=" + encodeURIComponent(url));
-    const data = await r.json();
-    if (id !== mirrorReq) return;
-    if (!r.ok) throw new Error(data.error || "Could not open");
-    mContent.innerHTML = renderBlocks(data);
-    M.loaded = url; M.pending = ""; $("pad-empty").hidden = true;
+    if (mode === "page") {
+      // The real page, same as on the display: its own colours, fonts and images.
+      const r = await fetch("/api/page?url=" + encodeURIComponent(url));
+      if (!r.ok) throw new Error("Could not open");
+      const html = await r.text();
+      if (id !== mirrorReq) return;
+      mContent.innerHTML = "";
+      await new Promise((ok) => { mFrame.onload = () => ok(); mFrame.hidden = false; mFrame.srcdoc = html; setTimeout(ok, 15000); });
+      if (id !== mirrorReq) return;
+    } else {
+      const r = await fetch("/api/reader?url=" + encodeURIComponent(url));
+      const data = await r.json();
+      if (id !== mirrorReq) return;
+      if (!r.ok) throw new Error(data.error || "Could not open");
+      mFrame.hidden = true; mFrame.removeAttribute("srcdoc");
+      mContent.innerHTML = renderBlocks(data);
+    }
+    M.mode = mode; M.loaded = key; M.pending = ""; $("pad-empty").hidden = true;
   } catch (e) {
     if (id !== mirrorReq) return;
     $("pad-empty").textContent = "Live view unavailable for this page. It still floats in the glass."; $("pad-empty").hidden = false;
-    M.loaded = url; M.pending = "";
+    M.loaded = key; M.pending = "";
   }
   paintMirror();
 }
 function paintMirror() {
+  if (M.mode === "page") {
+    const d = mFrame.contentDocument, w = mFrame.contentWindow;
+    if (!d || !d.documentElement) return;
+    const z = (M.view && M.view.zoom) || 1;
+    if (d.documentElement.style.zoom !== String(z)) d.documentElement.style.zoom = z;
+    w.scrollTo(0, M.y);
+    for (const a of d.querySelectorAll("a.airpane-hover")) a.classList.remove("airpane-hover");
+    if (M.hover) for (const a of d.querySelectorAll("a[href]")) {
+      const t = (a.textContent || a.getAttribute("aria-label") || a.href || "").replace(/\s+/g, " ").trim().slice(0, 90);
+      if (t === M.hover) { a.classList.add("airpane-hover"); break; }
+    }
+    return;
+  }
   mContent.style.transform = `translateY(${-M.y}px)`;
   for (const a of mContent.querySelectorAll(".g-link.hover")) a.classList.remove("hover");
   if (M.hover) for (const a of mContent.querySelectorAll(".g-link")) if (a.textContent === M.hover) { a.classList.add("hover"); break; }
@@ -100,6 +131,23 @@ function fitMirror() {
   mBox.style.transform = `scale(${k})`;
 }
 new ResizeObserver(fitMirror).observe(document.getElementById("pad"));
+
+// Big view: the live page fills the laptop screen (Esc or the button to leave).
+const bigBtn = $("big");
+function setBig(on) {
+  document.body.classList.toggle("big-view", on);
+  bigBtn.textContent = on ? "Exit full screen" : "Full screen";
+  bigBtn.setAttribute("aria-pressed", String(on));
+  const card = document.querySelector(".pad-card");
+  try {
+    if (on && card.requestFullscreen && !document.fullscreenElement) card.requestFullscreen().catch(() => {});
+    if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  } catch {}
+  requestAnimationFrame(fitMirror);
+}
+bigBtn.addEventListener("click", () => setBig(!document.body.classList.contains("big-view")));
+document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && document.body.classList.contains("big-view")) setBig(false); });
+addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("big-view")) setBig(false); });
 function onClosed() {
   link = null;
   $("now-title").textContent = "Disconnected. Reload the display and connect again.";

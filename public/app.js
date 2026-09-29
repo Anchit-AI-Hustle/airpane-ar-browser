@@ -379,7 +379,12 @@ function applyView(camOk) {
     ar.classList.remove("no-cam");
     keepAwake(true);
     if (view === "pyramid") { glass.stop(); pairEl.hidden = true; pyr.start(); if (current) pyr.show(current); }
-    else { pyr.stop(); glass.start(); startLink(); }
+    else {
+      pyr.stop(); glass.start(); startLink();
+      let flip = "1";
+      try { flip = localStorage.getItem("airpane-flip") ?? "1"; } catch {}
+      setFlip(flip !== "0");
+    }
     let seen = false;
     try { seen = localStorage.getItem("airpane-help-" + view) === "1"; } catch {}
     if (!seen) showHelp(); else hint(HELP[view].hint, 5000);
@@ -419,7 +424,16 @@ async function switchView() {
 }
 
 // ---------- pyramid helpers ----------
-const helpEl = $("pyr-help"), darkBtn = $("dark-btn"), pairEl = $("glass-pair"), pairBtn = $("pair-btn");
+const helpEl = $("pyr-help"), darkBtn = $("dark-btn"), pairEl = $("glass-pair"), pairBtn = $("pair-btn"), flipBtn = $("flip-btn");
+// Floating glass draws the page upside down so the sheet's reflection reads right.
+// Without a sheet (reading straight off a phone) it can be shown the right way up.
+function setFlip(on) {
+  glass.setFlip(on);
+  flipBtn.textContent = "For clear sheet: " + (on ? "on" : "off");
+  flipBtn.setAttribute("aria-pressed", String(on));
+  try { localStorage.setItem("airpane-flip", on ? "1" : "0"); } catch {}
+  if (link) link.broadcast({ t: "state", ...glass.state });
+}
 const HELP = {
   pyramid: {
     hint: "Stand the pyramid on the + mark. Tap the screen for controls.",
@@ -439,6 +453,7 @@ const HELP = {
 };
 function showHelp() {
   $("help-steps").innerHTML = (HELP[view] || HELP.pyramid).steps;
+  $("help-noflip").hidden = view !== "glass";
   helpEl.hidden = false; $("pyr-help-ok").focus();
 }
 function hideHelp() {
@@ -452,7 +467,7 @@ function hideHelp() {
 let glassScale = 1;
 function glassSize(f) {
   glassScale = Math.max(0.6, Math.min(2.2, glassScale * f));
-  glass.el.content.style.setProperty("--gs", glassScale.toFixed(3));
+  glass.setScale(glassScale);
 }
 async function startLink() {
   if (link || linkStarting) { pairEl.hidden = Boolean(link && link.peers); return; }
@@ -564,7 +579,9 @@ $("zoom-out").addEventListener("click", () => zoom(1.18));
 viewBtn.addEventListener("click", switchView);
 $("help-btn").addEventListener("click", showHelp);
 pairBtn.addEventListener("click", () => { pairEl.hidden = false; pokeUI(); });
-$("pyr-help-ok").addEventListener("click", hideHelp);
+$("pyr-help-ok").addEventListener("click", () => { if (view === "glass") setFlip(true); hideHelp(); });
+$("help-noflip").addEventListener("click", () => { setFlip(false); hideHelp(); });
+flipBtn.addEventListener("click", () => setFlip(!glass.flipped));
 darkBtn.addEventListener("click", () => {
   const on = !pyr.state.dark;
   pyr.setDark(on);
@@ -572,9 +589,10 @@ darkBtn.addEventListener("click", () => {
   darkBtn.setAttribute("aria-pressed", String(on));
 });
 ar.addEventListener("pointerdown", pokeUI);
+ar.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" && ar.classList.contains("ui-hidden")) pokeUI(); });
 ar.addEventListener("focusin", pokeUI);
 addEventListener("keydown", (e) => { if (e.key === "Escape" && !helpEl.hidden) hideHelp(); });
 $("recenter-btn").addEventListener("click", () => { if (view === "holo") return holo.recenter(); if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
 
 // Test hook (no effect for users).
-window.__airpane = { normalizeInput, get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };
+window.__airpane = { normalizeInput, glassLinks: (n) => (glass ? glass.linkPoints(n) : []), get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };

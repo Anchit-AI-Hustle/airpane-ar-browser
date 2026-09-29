@@ -109,6 +109,25 @@ async function t(name, fn) { try { await fn(); pass++; console.log("ok  ", name)
     assert.equal(r.status, 200);
     assert.ok(r.body.blocks.flatMap((b) => b.runs).filter((x) => x.href).length > 30);
   });
+  const page = require("../api/page");
+  const callRaw = (handler, url) => new Promise((resolve) => {
+    const req = Readable.from([]); Object.assign(req, { method: "GET", url });
+    const res = { headers: {}, statusCode: 200, setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, end(s) { resolve({ status: this.statusCode, text: String(s), headers: this.headers }); } };
+    handler(req, res);
+  });
+  await t("page: missing url -> 400", async () => assert.equal((await callRaw(page, "/api/page")).status, 400));
+  await t("page: private host refused (SSRF)", async () => assert.equal((await callRaw(page, "/api/page?url=" + encodeURIComponent("http://169.254.169.254/"))).status, 422));
+  await t("page: the real page keeps its own styles, with every script and handler removed", async () => {
+    const r = await callRaw(page, "/api/page?url=" + encodeURIComponent("https://anchit-tandon.com"));
+    assert.equal(r.status, 200, r.text.slice(0, 200));
+    assert.match(r.headers["content-type"], /text\/html/);
+    assert.match(decodeURIComponent(r.headers["x-final-url"]), /^https:\/\/anchit-tandon\.com/);
+    assert.match(r.text, /<base href="https:\/\/anchit-tandon\.com/);
+    assert.match(r.text, /<link[^>]+stylesheet|<style/i);
+    assert.doesNotMatch(r.text, /<script/i);
+    assert.doesNotMatch(r.text, /\son(click|load|error|mouseover)\s*=/i);
+    assert.doesNotMatch(r.text, /href\s*=\s*["']\s*javascript:/i);
+  });
   delete process.env.HYPERBEAM_API_KEY;
   console.log(`\n${pass} API tests passed${process.exitCode ? " (with failures)" : ""}`);
 })();
