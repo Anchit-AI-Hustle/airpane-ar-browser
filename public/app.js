@@ -5,6 +5,7 @@ import {
 import { createHolo } from "./holo.js";
 import { createPyramid } from "./pyramid.js";
 import { createGlass } from "./glass.js";
+import { createHandTracker } from "./handtrack.js";
 import { host, cleanCode } from "./link.js";
 
 const $ = (id) => document.getElementById(id);
@@ -64,6 +65,9 @@ let dist = 1000, running = false, placed = false, ready = false;
 // of the screen. "room": phone, the back camera shows the room and the page is
 // pinned in it.
 let view = "room", holo = null, pyr = null, glass = null, link = null, linkStarting = false;
+// Hologram on a laptop with no phone: the real page floats in the 3D room and the same
+// webcam reads both the head (depth) and the hand (cursor, click, scroll, back, forward).
+let handMode = false, holoGlass = null, holoHost = null, hands = null;
 const VIEWS = ["glass", "pyramid", "holo", "room"];
 const LABEL = { glass: "Floating glass", pyramid: "Pyramid", holo: "Hologram", room: "Camera room" };
 const FLOAT = (v) => v === "glass" || v === "pyramid"; // views seen as a reflection: no camera, fading controls
@@ -305,6 +309,7 @@ async function loadURL(raw, { push = true } = {}) {
   urlInput.blur();
   if (push) history.pushState({ ar: 1, url }, "");
   if (view === "glass") { setMode("direct"); glass.load(url); return; }
+  if (view === "holo" && holoGlass) { setMode("direct"); showState(""); holoGlass.load(url); return; }
   loadingState("Opening");
   setStatus("Checking " + url.replace(/^https?:\/\//, "").slice(0, 60));
 
@@ -343,7 +348,8 @@ async function enterAR(raw) {
   if (running) return loadURL(raw);
   launchBtn.disabled = true;
   const mode = (document.querySelector('input[name="mode"]:checked') || {}).value;
-  view = mode === "pyramid" || mode === "glass" ? mode : pickView();
+  handMode = mode === "hologram";
+  view = mode === "pyramid" || mode === "glass" ? mode : handMode ? "holo" : pickView();
   const orientP = view === "room" ? requestOrientation() : Promise.resolve(false); // first call inside the tap on iPhone
   const camP = FLOAT(view) ? Promise.resolve(false) : startCamera(view === "holo" ? "user" : "environment");
   const [, camOk] = await Promise.all([orientP, camP]);
@@ -374,6 +380,7 @@ function applyView(camOk) {
   trackEl.hidden = true;
   stage.style.perspectiveOrigin = "";
   placePanel();
+  if (view !== "holo") unmountHoloGlass();
   if (FLOAT(view)) {
     holo.stop();
     ar.classList.remove("no-cam");
@@ -397,13 +404,56 @@ function applyView(camOk) {
   keepAwake(false);
   if (view === "holo") {
     holo.start();
-    hint(camOk ? "Move your head. The page floats in front of your screen." : "Move the mouse to look around the page in 3D.", 6000);
+    if (handMode) mountHoloGlass(camOk); else unmountHoloGlass();
+    hint(handMode ? (camOk ? "Move your head to see the depth. Hold up an open hand to move the cursor, make a fist to click." : "Camera is off: use the mouse on the floating page.")
+      : camOk ? "Move your head. The page floats in front of your screen." : "Move the mouse to look around the page in 3D.", 6000);
     if (!camOk) toast("Camera is off, so head tracking is off. Using the mouse instead.");
   } else {
     holo.stop();
     if (!camOk) toast("Camera is off. Showing a virtual room instead.");
     setTimeout(() => { if (view === "room" && !gyro.active) hint("Drag the background to look around."); }, 1200);
   }
+}
+
+function mountHoloGlass(camOk) {
+  if (!holoGlass) {
+    holoHost = document.createElement("div");
+    holoHost.className = "glass holo-glass";
+    panelEl.append(holoHost);
+    holoGlass = createGlass(holoHost, { onState: (st) => { if (view === "holo" && st.title) setStatus(st.title); } });
+    holoGlass.setFlip(false);
+    // Mouse / trackpad on the floating page: offsetX / offsetY are measured on the page
+    // itself, so they stay right however the 3D view turns it.
+    const pt = (e) => ({ x: Math.min(1, Math.max(0, e.offsetX / e.target.clientWidth)), y: Math.min(1, Math.max(0, e.offsetY / e.target.clientHeight)) });
+    holoHost.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" && e.target.classList.contains("g-touch")) { const p = pt(e); holoGlass.cursor(p.x, p.y); } });
+    holoHost.addEventListener("pointerleave", () => holoGlass && holoGlass.hideCursor());
+    holoHost.addEventListener("click", (e) => { if (e.target.classList.contains("g-touch")) { const p = pt(e); holoGlass.click(p.x, p.y); } });
+    holoHost.addEventListener("wheel", (e) => { e.preventDefault(); holoGlass.scroll(e.deltaY / 900); }, { passive: false });
+  }
+  frameHost.hidden = true;
+  holoGlass.start();
+  if (camOk) startHands();
+}
+function unmountHoloGlass() {
+  if (hands) hands.stop();
+  if (!holoGlass) { if (frameHost) frameHost.hidden = false; return; }
+  holoGlass.stop(); holoHost.remove(); holoGlass = null; holoHost = null;
+  frameHost.hidden = false;
+}
+let handHinted = false;
+async function startHands() {
+  hands = hands || createHandTracker(cam, (ev) => {
+    if (!holoGlass || view !== "holo") return;
+    if (!handHinted) { handHinted = true; hint("Hand seen. Open hand moves, a fist clicks, index finger scrolls, flick to go back.", 4500); }
+    if (ev.t === "cur") holoGlass.cursor(ev.x, ev.y);
+    else if (ev.t === "click") { holoGlass.click(ev.x, ev.y); hint("Click", 900); }
+    else if (ev.t === "scroll") holoGlass.scroll(ev.dy);
+    else if (ev.t === "back") { holoGlass.back(); hint("Back", 900); }
+    else if (ev.t === "forward") { holoGlass.forward(); hint("Forward", 900); }
+    else if (ev.t === "lost") holoGlass.hideCursor();
+  });
+  const ok = await hands.start();
+  if (!ok) toast("Hand tracking could not load. Use the mouse on the floating page.");
 }
 
 function onHoloStatus(st) {
@@ -548,6 +598,7 @@ async function keepAwake(on) {
 function exitAR() {
   running = false;
   if (holo) holo.stop();
+  unmountHoloGlass();
   if (pyr) pyr.stop();
   if (glass) { glass.stop(); glass.hideCursor(); }
   if (link) { link.close(); link = null; }
@@ -599,9 +650,16 @@ function syncMode() {
 if (!pairCode) {
   let saved = null;
   try { saved = localStorage.getItem("airpane-mode"); } catch {}
+  if (saved === "hologram" && !isLaptop()) saved = null; // the Hologram is a laptop mode
   const want = saved || (isLaptop() ? "control" : "glass");
   const r = modeRadios.find((x) => x.value === want);
   if (r) r.checked = true;
+}
+// On a laptop, offer the Hologram (no phone needed); phones keep the camera room.
+if (isLaptop()) {
+  document.querySelectorAll(".laptop-only").forEach((el) => { el.hidden = false; });
+  document.querySelector(".modes").classList.add("five");
+  $("screen-desc").textContent = "The site itself in a 3D room, with mouse control.";
 }
 modeRadios.forEach((r) => r.addEventListener("change", () => { try { localStorage.setItem("airpane-mode", r.value); } catch {} syncMode(); }));
 codeInput.addEventListener("input", () => { codeInput.value = cleanCode(codeInput.value); });
@@ -672,4 +730,4 @@ addEventListener("keydown", (e) => { if (e.key === "Escape" && !helpEl.hidden) h
 $("recenter-btn").addEventListener("click", () => { if (view === "holo") return holo.recenter(); if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
 
 // Test hook (no effect for users).
-window.__airpane = { normalizeInput, glassLinks: (n) => (glass ? glass.linkPoints(n) : []), get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };
+window.__airpane = { normalizeInput, glassLinks: (n) => (glass ? glass.linkPoints(n) : []), get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, holoGlass: holoGlass && holoGlass.state, hands: hands && hands.state, handMode, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };

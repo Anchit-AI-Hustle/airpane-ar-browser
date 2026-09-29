@@ -499,6 +499,9 @@ async function t(name, fn) {
     });
 
     await t("controller: trackpad moves the cursor onto a link and the display highlights it", async () => {
+      // the test webcam shows a hand, which also moves the cursor: switch hand control off for the trackpad
+      await ctl.click("#hands");
+      await ctl.waitForFunction(() => !window.__ctl.state.handsOn);
       const L = await linkPoint();
       await ctl.locator("#pad").scrollIntoViewIfNeeded(); const pad = await ctl.locator("#pad").boundingBox();
       await ctl.mouse.move(pad.x + L.x * pad.width, pad.y + L.y * pad.height, { steps: 4 });
@@ -509,6 +512,7 @@ async function t(name, fn) {
       assert.equal(await hovered(ctl, "#mirror .g-page"), await hovered(disp, "#glass .g-page"));
       await ctl.waitForFunction(() => /Make a fist to open/.test(document.getElementById("now-hover").textContent), null, { timeout: 10000 });
       await disp.screenshot({ path: `${SHOTS}/glass-2-hover.png` });
+      await ctl.click("#hands"); // hand control back on
     });
 
     await t("controller: clicking opens the link on the floating page, Back returns, Forward goes again", async () => {
@@ -711,6 +715,42 @@ async function t(name, fn) {
       await lap.evaluate(() => history.back());
       await lap.waitForFunction(() => !window.__airpane_ctl.open, null, { timeout: 5000 });
       await c2.close(); await d2.close();
+    });
+
+    await t("laptop only, no phone: the Hologram shows the real page in 3D, with hand, mouse and wheel control", async () => {
+      const c3 = await ctlBrowser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["camera"], ignoreHTTPSErrors: true });
+      const p = await c3.newPage();
+      const errs = [];
+      p.on("pageerror", (e) => errs.push(e.message));
+      await p.goto(BASE + "/", { waitUntil: "load" });
+      assert.equal(await p.isVisible(".mode-opt:has(input[value=hologram])"), true, "Hologram should be offered on a laptop");
+      await p.click(".mode-opt:has(input[value=hologram])");
+      await p.fill("#launch-input", "anchit-tandon.com");
+      await p.press("#launch-input", "Enter");
+      await p.waitForFunction(() => { const s = window.__airpane.state; return s.view === "holo" && s.handMode && s.holoGlass && s.holoGlass.mode === "page" && !s.holoGlass.loading; }, null, { timeout: 60000 });
+      assert.equal(await p.locator(".holo-plane").count(), 5, "the 3D room is missing");
+      // the webcam hand drives the cursor on the floating page
+      await p.waitForFunction(() => { const h = window.__airpane.state.hands; return h && h.ready && h.events > 0; }, null, { timeout: 60000 });
+      await p.waitForFunction(() => !document.querySelector(".holo-glass .g-cursor").hidden, null, { timeout: 20000 });
+      // a mouse click through the 3D view lands on the right place: open the About tab
+      const pt = await p.evaluate(() => {
+        const host = document.querySelector(".holo-glass"), d = host.querySelector(".g-page").contentDocument;
+        const a = d.querySelector('a[data-view="about"].sidebar-item'), r = a.getBoundingClientRect();
+        const probe = document.createElement("div");
+        probe.style.cssText = `position:absolute;left:${(r.left + r.width / 2) / host.clientWidth * 100}%;top:${(r.top + r.height / 2) / host.clientHeight * 100}%;width:2px;height:2px`;
+        host.append(probe); const q = probe.getBoundingClientRect(); probe.remove();
+        return { x: q.left + 1, y: q.top + 1 };
+      });
+      await p.mouse.click(pt.x, pt.y);
+      await p.waitForFunction(() => window.__airpane.state.holoGlass.tab === "about", null, { timeout: 15000 });
+      const y0 = await p.evaluate(() => window.__airpane.state.holoGlass.y);
+      await p.mouse.move(720, 450); await p.mouse.wheel(0, 700);
+      await p.waitForFunction((y) => window.__airpane.state.holoGlass.y > y + 100, y0, { timeout: 10000 });
+      await p.screenshot({ path: `${SHOTS}/hologram-laptop-only.png` });
+      await p.click("#exit-btn");
+      await p.waitForFunction(() => !window.__airpane.state.running && !window.__airpane.state.holoGlass);
+      assert.deepEqual(errs, []);
+      await c3.close();
     });
 
     await ctlBrowser.close();

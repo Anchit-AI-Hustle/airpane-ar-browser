@@ -20,6 +20,8 @@
 .promo:hover { border-color: rgba(124, 245, 211, 0.7); transform: translateY(-1px); }
 .promo-tag { flex: none; font: 700 11px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: #04110c; background: var(--mint); border-radius: 6px; padding: 5px 7px; }
 .promo-go { flex: none; margin-left: auto; color: var(--mint); font-weight: 600; white-space: nowrap; }
+.mode-opt[hidden] { display: none; }
+.modes.five .mode-opt:last-child { grid-column: 1 / -1; }
 .launch .launch-code { flex: 0 0 118px; border-left: 1px solid var(--line); border-radius: 0; min-width: 0; text-transform: uppercase; letter-spacing: 0.14em; text-align: center; font-weight: 700; }
 .launch .launch-code::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; }
 .launch-code[hidden] { display: none; }
@@ -48,8 +50,9 @@
         <div class="modes" role="radiogroup" aria-label="How to show the page">
           <label class="mode-opt"><input type="radio" name="mode" value="glass" checked /><span><b>Floating glass</b><small>Big page in the air. Needs a clear sheet. Hand control.</small></span></label>
           <label class="mode-opt"><input type="radio" name="mode" value="pyramid" /><span><b>Floating pyramid</b><small>Small page in mid-air. Needs a clear pyramid.</small></span></label>
-          <label class="mode-opt"><input type="radio" name="mode" value="screen" /><span><b>3D on screen</b><small>No pyramid. Uses the camera for depth.</small></span></label>
-          <label class="mode-opt"><input type="radio" name="mode" value="control" /><span><b>Hand controller</b><small>Control the floating page from this laptop's camera.</small></span></label>
+          <label class="mode-opt laptop-only" hidden><input type="radio" name="mode" value="hologram" /><span><b>Hologram</b><small>This laptop only, no phone. The page floats in front of the screen; hand and head control.</small></span></label>
+          <label class="mode-opt"><input type="radio" name="mode" value="screen" /><span><b>3D on screen</b><small id="screen-desc">No pyramid. Uses the camera for depth.</small></span></label>
+          <label class="mode-opt"><input type="radio" name="mode" value="control" /><span><b>Hand controller</b><small>This laptop controls a phone's floating page by hand.</small></span></label>
         </div>
 
         <form id="launch-form" class="launch" autocomplete="off">

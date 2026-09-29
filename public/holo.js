@@ -66,7 +66,11 @@ export function createHolo({ stage, panel, video, onStatus }) {
     lastFace: 0, mouse: null, tracking: false, t0: performance.now(), lastVideoTime: -1,
   };
 
-  function onMouse(e) { s.mouse = { x: e.clientX, y: e.clientY, t: performance.now() }; }
+  function onMouse(e) {
+    // pointing at the floating page is for using it, not for looking around
+    if (e.target && e.target.closest && e.target.closest(".panel")) return;
+    s.mouse = { x: e.clientX, y: e.clientY, t: performance.now() };
+  }
 
   async function loadDetector() {
     if (s.detector || s.loading) return;
