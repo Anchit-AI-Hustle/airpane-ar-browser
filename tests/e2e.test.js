@@ -695,7 +695,7 @@ async function t(name, fn) {
       await c2.close(); await d2.close();
     });
 
-    await t("one page: a phone already showing a code, typed next to the site on the laptop, connects straight away", async () => {
+    await t("one page: a phone already showing a code can still be paired from the laptop's pairing screen", async () => {
       const c2 = await ctlBrowser.newContext({ viewport: { width: 1280, height: 860 }, permissions: ["camera"], ignoreHTTPSErrors: true });
       const d2 = await browser.newContext({ ...devices["Pixel 7"], ignoreHTTPSErrors: true });
       const lap = await c2.newPage(), phone = await d2.newPage();
@@ -706,10 +706,14 @@ async function t(name, fn) {
       await phone.waitForFunction(() => /^[A-Z]{4}$/.test(window.__airpane.state.code || ""), null, { timeout: 30000 });
       const code = await phone.evaluate(() => window.__airpane.state.code);
       await lap.goto(BASE + "/" + PQ, { waitUntil: "load" });
+      assert.equal(await lap.locator("#launch-form input").count(), 1, "the home page has one field: the website");
       await lap.fill("#launch-input", "example.com");
-      await lap.fill("#launch-code", code.toLowerCase());
       await lap.press("#launch-input", "Enter");
-      await lap.frameLocator("#ctl-frame").locator("#panel:not([hidden])").waitFor({ timeout: 40000 });
+      const fr = lap.frameLocator("#ctl-frame");
+      await fr.locator("#qr svg").waitFor({ timeout: 20000 });
+      await fr.locator("#code").fill(code.toLowerCase());
+      await fr.locator("#connect").click();
+      await fr.locator("#panel:not([hidden])").waitFor({ timeout: 40000 });
       await phone.waitForFunction(() => { const g = window.__airpane.state.glass; return !g.loading && /example\.com/.test(g.url); }, null, { timeout: 30000 });
       // the browser's Back button closes the controller
       await lap.evaluate(() => history.back());

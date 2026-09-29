@@ -22,14 +22,10 @@
 .promo-go { flex: none; margin-left: auto; color: var(--mint); font-weight: 600; white-space: nowrap; }
 .mode-opt[hidden] { display: none; }
 .modes.five .mode-opt:last-child { grid-column: 1 / -1; }
-.launch .launch-code { flex: 0 0 118px; border-left: 1px solid var(--line); border-radius: 0; min-width: 0; text-transform: uppercase; letter-spacing: 0.14em; text-align: center; font-weight: 700; }
-.launch .launch-code::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; }
-.launch-code[hidden] { display: none; }
 .ctl-shell { position: fixed; inset: 0; z-index: 100; background: #05070d; }
 .ctl-shell[hidden] { display: none; }
 .ctl-shell iframe { width: 100%; height: 100%; border: 0; display: block; }
-@media (max-width: 520px) { .launch .launch-code { flex-basis: 92px; } }
-@media (max-width: 600px) { .promo { flex-wrap: wrap; } .promo-go { margin-left: 0; } }
+@media (max-width: 520px) { @media (max-width: 600px) { .promo { flex-wrap: wrap; } .promo-go { margin-left: 0; } }
   </style>
 </head>
 <body>
@@ -58,8 +54,6 @@
         <form id="launch-form" class="launch" autocomplete="off">
           <label class="sr" for="launch-input">Search or type a URL</label>
           <input id="launch-input" name="q" type="text" inputmode="url" placeholder="Search or type a URL" enterkeyhint="go" />
-          <label class="sr" for="launch-code">Code shown on the phone</label>
-          <input id="launch-code" class="launch-code" name="code" type="text" maxlength="4" autocapitalize="characters" spellcheck="false" placeholder="Phone code" title="Already showing a code on the phone? Type it here. Otherwise leave it empty and scan the QR code next." hidden />
           <button type="submit" class="btn-primary" id="launch-btn">Launch<span aria-hidden="true">→</span></button>
         </form>
 
@@ -95,7 +89,7 @@
 
     <section class="how">
       <div class="step"><span>1</span><h3>Set up the glass</h3><p>Lay the phone or iPad flat and lean a clear acrylic sheet over it at 45°, resting on the far edge and rising towards you.</p></div>
-      <div class="step"><span>2</span><h3>Pair your laptop</h3><p>On the laptop, open this same page, choose Hand controller, type the site and press Launch. Scan the QR code with the phone, or type the phone's code before pressing Launch.</p></div>
+      <div class="step"><span>2</span><h3>Pair your laptop</h3><p>On the laptop, open this same page, choose Hand controller, type the site and press Launch. Scan the QR code that appears with the phone. Nothing to type.</p></div>
       <div class="step"><span>3</span><h3>Use it in the air</h3><p>Move an open hand to move the cursor, make a fist to click, move your index finger up or down to scroll, flick it left or right to go back or forward.</p></div>
     </section>
 
@@ -109,7 +103,7 @@
     <div id="pyr" class="pyr" hidden></div>
     <div id="glass" class="glass" hidden></div>
     <div id="glass-pair" class="glass-pair" hidden>
-      <p><b>Hand control:</b> on a laptop open <b>airpane.anchit-tandon.com</b>, choose <b>Hand controller</b>, and type this code next to the site:</p>
+      <p><b>Hand control:</b> on a laptop open <b>airpane.anchit-tandon.com</b>, choose <b>Hand controller</b>, press <b>Launch</b>, and type this code there:</p>
       <div class="code" id="glass-code">....</div>
       <p id="glass-pair-note">Tap this card to hide it.</p>
     </div>

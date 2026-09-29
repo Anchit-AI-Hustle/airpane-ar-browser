@@ -635,17 +635,15 @@ if (pairCode.length === 4) {
 } else pairCode = "";
 
 // ---------- this device as the hand controller, on this same page ----------
-// Pick "Hand controller", type the site (and the phone's code if it already shows one),
+// Pick "Hand controller", type the website (the pairing code is made automatically),
 // press Launch: the controller opens right here and the phone shows the site.
 const modeRadios = [...document.querySelectorAll('input[name="mode"]')];
-const codeInput = $("launch-code"), shell = $("ctl-shell");
+const shell = $("ctl-shell");
 let shellFrame = null;
 const isLaptop = () => matchMedia("(pointer: fine)").matches && innerWidth >= 900;
 const modeNow = () => (document.querySelector('input[name="mode"]:checked') || {}).value;
 function syncMode() {
-  const ctl = modeNow() === "control";
-  codeInput.hidden = !ctl;
-  launchInput.placeholder = ctl ? "Site to open on the phone" : "Search or type a URL";
+  launchInput.placeholder = modeNow() === "control" ? "Website to open" : "Search or type a URL";
 }
 if (!pairCode) {
   let saved = null;
@@ -662,14 +660,11 @@ if (isLaptop()) {
   $("screen-desc").textContent = "The site itself in a 3D room, with mouse control.";
 }
 modeRadios.forEach((r) => r.addEventListener("change", () => { try { localStorage.setItem("airpane-mode", r.value); } catch {} syncMode(); }));
-codeInput.addEventListener("input", () => { codeInput.value = cleanCode(codeInput.value); });
 syncMode();
 
 function openController(raw) {
   const url = normalizeInput(raw || "https://en.m.wikipedia.org/wiki/Augmented_reality");
   const q = new URLSearchParams({ embed: "1", open: url });
-  const code = cleanCode(codeInput.value);
-  if (code.length === 4) q.set("code", code);
   const peer = new URLSearchParams(location.search).get("peer");
   if (peer) q.set("peer", peer);
   // A fresh frame each time (its address is set before it is added), so the browser's
