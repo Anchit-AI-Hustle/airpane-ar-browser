@@ -6,6 +6,7 @@ import { createHolo } from "./holo.js";
 import { createPyramid } from "./pyramid.js";
 import { createGlass } from "./glass.js";
 import { createHandTracker } from "./handtrack.js";
+import { gestureKind } from "./gestures.js";
 import { host, cleanCode } from "./link.js";
 
 const $ = (id) => document.getElementById(id);
@@ -381,6 +382,7 @@ function applyView(camOk) {
   stage.style.perspectiveOrigin = "";
   placePanel();
   if (view !== "holo") unmountHoloGlass();
+  if (view !== "glass") stopSelfGlass();
   if (FLOAT(view)) {
     holo.stop();
     ar.classList.remove("no-cam");
@@ -388,13 +390,14 @@ function applyView(camOk) {
     if (view === "pyramid") { glass.stop(); pairEl.hidden = true; pyr.start(); if (current) pyr.show(current); }
     else {
       pyr.stop(); glass.start(); startLink();
+      if (isLaptop()) startSelfGlass(); // hand control from this laptop's own camera
       let flip = "1";
       try { flip = localStorage.getItem("airpane-flip") ?? "1"; } catch {}
       setFlip(flip !== "0");
     }
     let seen = false;
     try { seen = localStorage.getItem("airpane-help-" + view) === "1"; } catch {}
-    if (!seen) showHelp(); else hint(HELP[view].hint, 5000);
+    if (!seen) showHelp(); else hint((HELP[helpKey()] || HELP[view]).hint, 5000);
     pokeUI();
     return;
   }
@@ -432,28 +435,67 @@ function mountHoloGlass(camOk) {
   }
   frameHost.hidden = true;
   holoGlass.start();
+  $("holo-guide").hidden = false;
+  $("holo-hand").textContent = camOk ? "Show your hand to the camera" : "Camera is off: use the mouse on the page";
   if (camOk) startHands();
 }
 function unmountHoloGlass() {
   if (hands) hands.stop();
+  $("holo-guide").hidden = true;
+  clearInterval(guideTimer);
   if (!holoGlass) { if (frameHost) frameHost.hidden = false; return; }
   holoGlass.stop(); holoHost.remove(); holoGlass = null; holoHost = null;
   frameHost.hidden = false;
 }
-let handHinted = false;
+let handHinted = false, guideTimer = 0, selfGlass = false;
+// What this device's own hand tracking controls: the Hologram's page, or (laptop with a
+// clear sheet) the Floating glass page.
+// (A paired controller takes over the Floating glass, so the two never fight.)
+const handTarget = () => (view === "holo" && holoGlass ? holoGlass : view === "glass" && selfGlass && !(link && link.peers) ? glass : null);
+// Laptop + clear sheet: no phone, the laptop's webcam gives hand control.
+async function startSelfGlass() {
+  selfGlass = true;
+  pairEl.hidden = true; pairBtn.hidden = false; // another laptop can still pair via "Pair laptop"
+  $("holo-guide").hidden = false;
+  $("holo-hand").textContent = "Starting the camera";
+  const ok = await startCamera("user");
+  if (view !== "glass" || !selfGlass) { stopCamera(); return; }
+  if (!ok) { $("holo-hand").textContent = "Camera is off: use the mouse or a phone controller"; return; }
+  startHands();
+}
+function stopSelfGlass() {
+  if (!selfGlass) return;
+  selfGlass = false;
+  if (hands) hands.stop();
+  clearInterval(guideTimer);
+  $("holo-guide").hidden = true;
+}
 async function startHands() {
   hands = hands || createHandTracker(cam, (ev) => {
-    if (!holoGlass || view !== "holo") return;
+    const g = handTarget();
+    if (!g) return;
     if (!handHinted) { handHinted = true; hint("Hand seen. Open hand moves, a fist clicks, index finger scrolls, flick to go back.", 4500); }
-    if (ev.t === "cur") holoGlass.cursor(ev.x, ev.y);
-    else if (ev.t === "click") { holoGlass.click(ev.x, ev.y); hint("Click", 900); }
-    else if (ev.t === "scroll") holoGlass.scroll(ev.dy);
-    else if (ev.t === "back") { holoGlass.back(); hint("Back", 900); }
-    else if (ev.t === "forward") { holoGlass.forward(); hint("Forward", 900); }
-    else if (ev.t === "lost") holoGlass.hideCursor();
+    if (ev.t === "cur") g.cursor(ev.x, ev.y);
+    else if (ev.t === "click") { g.click(ev.x, ev.y); hint("Click", 900); }
+    else if (ev.t === "scroll") g.scroll(ev.dy);
+    else if (ev.t === "back") { g.back(); hint("Back", 900); }
+    else if (ev.t === "forward") { g.forward(); hint("Forward", 900); }
+    else if (ev.t === "lost") g.hideCursor();
   });
+  $("holo-hand").textContent = "Starting hand tracking";
   const ok = await hands.start();
-  if (!ok) toast("Hand tracking could not load. Use the mouse on the floating page.");
+  if (!ok) { toast("Hand tracking could not load. Use the mouse on the floating page."); $("holo-hand").textContent = "Hand tracking unavailable: use the mouse"; return; }
+  // keep the guide live: light up the line for the shape the camera sees now
+  let last = null;
+  clearInterval(guideTimer);
+  guideTimer = setInterval(() => {
+    if (!hands || !handTarget()) return;
+    const st = hands.state, k = st.hand ? gestureKind(st.pose) : "";
+    if (k === last) return;
+    last = k;
+    for (const li of document.querySelectorAll("#holo-guide li[data-g]")) li.classList.toggle("on", li.dataset.g === k);
+    $("holo-hand").textContent = st.hand ? "Hand seen" : "Show your hand to the camera";
+  }, 150);
 }
 
 function onHoloStatus(st) {
@@ -479,6 +521,7 @@ const helpEl = $("pyr-help"), darkBtn = $("dark-btn"), pairEl = $("glass-pair"),
 // Without a sheet (reading straight off a phone) it can be shown the right way up.
 function setFlip(on) {
   glass.setFlip(on);
+  ar.classList.toggle("sheet", on); // the gesture guide is drawn to read right in the sheet too
   flipBtn.textContent = "For clear sheet: " + (on ? "on" : "off");
   flipBtn.setAttribute("aria-pressed", String(on));
   try { localStorage.setItem("airpane-flip", on ? "1" : "0"); } catch {}
@@ -493,6 +536,14 @@ const HELP = {
       <li>Stand the pyramid upside down, small end on the <b>+</b> mark.</li>
       <li>Dim the room and look from the side, level with the phone. The page floats inside.</li>`,
   },
+  glassLaptop: {
+    hint: "Hold the clear sheet over the screen. Your hand controls it through this laptop's camera.",
+    steps: `<li>Tilt this laptop's screen back as far as it goes (flat is best), brightness up, and set the laptop at about chest height.</li>
+      <li>Hold a clear sheet (clear plastic folder, CD case lid, photo-frame glass) over the screen: its lower edge just above the top of the screen, rising toward you.</li>
+      <li>Angle of the sheet from flat: screen folded flat <b>45°</b>, opened to 150° about <b>30°</b>, opened to 135° (most MacBooks) about <b>22°</b>. If the screen can't fold flat, the sheet needs to be about twice the screen's height.</li>
+      <li>Dim the room and look through the sheet with your eyes level with it. The page stands in the air behind the sheet.</li>
+      <li>Control it by hand with this laptop's camera: open hand moves the cursor, a fist clicks, index finger up or down scrolls, a quick flick goes back or forward.</li>`,
+  },
   glass: {
     hint: "Lean the clear sheet over the screen. Pair your laptop to control it by hand.",
     steps: `<li>Lay this phone or iPad flat, screen up, brightness high, bottom edge towards you. Lock screen rotation first.</li>
@@ -501,16 +552,18 @@ const HELP = {
       <li>To control it by hand: on your laptop open <b>airpane.anchit-tandon.com</b>, press <b>Control it by hand</b> and scan the QR code with this phone. Open hand moves the cursor, a fist clicks, index finger up or down scrolls, a flick left or right goes back or forward.</li>`,
   },
 };
+const helpKey = () => (view === "glass" && isLaptop() ? "glassLaptop" : view);
 function showHelp() {
-  $("help-steps").innerHTML = (HELP[view] || HELP.pyramid).steps;
+  $("help-steps").innerHTML = (HELP[helpKey()] || HELP.pyramid).steps;
   $("help-noflip").hidden = view !== "glass";
-  $("help-art").hidden = view !== "glass";
+  $("help-art").hidden = !(view === "glass" && !isLaptop());
+  $("help-art-laptop").hidden = !(view === "glass" && isLaptop());
   helpEl.hidden = false; $("pyr-help-ok").focus();
 }
 function hideHelp() {
   helpEl.hidden = true;
   try { localStorage.setItem("airpane-help-" + view, "1"); } catch {}
-  hint((HELP[view] || HELP.pyramid).hint, 5000);
+  hint((HELP[helpKey()] || HELP.pyramid).hint, 5000);
   pokeUI();
 }
 
@@ -540,6 +593,9 @@ async function startLink() {
         link.peers = n;
         pairEl.hidden = n > 0 || view !== "glass";
         pairBtn.hidden = n > 0;
+        // a paired controller takes over: pause this laptop's own hand tracking meanwhile
+        if (selfGlass && hands) { if (n > 0) hands.stop(); else startHands(); }
+        if (selfGlass) $("holo-hand").textContent = n > 0 ? "Controlled from another laptop" : "Show your hand to the camera";
         if (n > 0) { hint("Laptop connected. Open hand to move, fist to click.", 4000); link.broadcast({ t: "state", ...glass.state }); }
         else glass.hideCursor();
       },
@@ -599,6 +655,7 @@ function exitAR() {
   running = false;
   if (holo) holo.stop();
   unmountHoloGlass();
+  stopSelfGlass();
   if (pyr) pyr.stop();
   if (glass) { glass.stop(); glass.hideCursor(); }
   if (link) { link.close(); link = null; }

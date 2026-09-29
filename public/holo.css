@@ -21,3 +21,16 @@
 .track i { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 8px var(--mint); animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 @media (max-width: 560px) { .view-btn::before { content: ""; } #ar.holo #cam { width: 96px; height: 72px; } }
+
+/* Hologram on a laptop: the gesture guide stays in view, the current shape lights up */
+.holo-guide { position: absolute; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 84px); z-index: 3; width: 250px; padding: 12px 14px; border-radius: 14px; background: rgba(8, 12, 24, 0.82); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 12.5px; line-height: 1.4; color: #c9d0e3; }
+.holo-guide[hidden] { display: none; }
+.holo-guide .hg-title { display: block; font: 700 13px var(--display); color: #fff; margin-bottom: 6px; }
+.holo-guide ul { margin: 0; padding-left: 16px; display: grid; gap: 4px; }
+.holo-guide li b { display: block; color: #e8ecf7; font-weight: 600; }
+.holo-guide li.on, .holo-guide li.on b { color: var(--mint); }
+.holo-guide .hg-status { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+@media (max-width: 700px) { .holo-guide { width: 200px; font-size: 11.5px; } }
+/* Floating glass on a laptop: the guide stays up and reads the right way round in the sheet */
+#ar.glassv .holo-guide { bottom: 16px; }
+#ar.glassv.sheet .holo-guide { transform: scaleY(-1); }

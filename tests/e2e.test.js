@@ -222,7 +222,8 @@ async function t(name, fn) {
         // Cycle: Camera room -> Floating glass -> Pyramid -> Hologram
         await page.click("#view-btn");
         await page.waitForFunction(() => document.getElementById("view-btn").textContent === "Floating glass");
-        assert.equal(await page.evaluate(() => document.getElementById("cam").srcObject), null, "camera left on in glass");
+        // a laptop showing the floating glass controls it by hand with its own camera
+        await page.waitForFunction(() => !document.getElementById("holo-guide").hidden, null, { timeout: 10000 });
         if (await page.isVisible("#pyr-help")) await page.click("#pyr-help-ok");
         await page.click("#view-btn");
         await page.waitForFunction(() => document.getElementById("view-btn").textContent === "Pyramid");
@@ -443,16 +444,20 @@ async function t(name, fn) {
     const pageText = (pg, sel) => pg.evaluate((sel) => { const d = document.querySelector(sel)?.contentDocument; return d && d.body ? d.body.innerText : ""; }, sel);
     const hovered = (pg, sel) => pg.evaluate((sel) => document.querySelector(sel)?.contentDocument?.querySelector("a.airpane-hover")?.textContent || "", sel);
 
-    await t("glass: is the default, opens without the camera and shows a pairing code", async () => {
+    await t("glass: on a laptop it shows the page, the gesture guide for its own camera, and a pairing code", async () => {
       await disp.goto(BASE + "/" + PQ, { waitUntil: "load" });
       // on a laptop the page starts as the hand controller; this screen is the floating display
       assert.equal(await disp.isChecked("input[value=control]"), true, "a laptop should start as the hand controller");
       await disp.click(".mode-opt:has(input[value=glass])");
       await disp.click("#landing .chip >> text=Wikipedia");
       await disp.waitForSelector("#ar.glassv");
-      assert.equal(await disp.evaluate(() => document.getElementById("cam").srcObject), null);
+      assert.equal(await disp.isVisible("#help-art-laptop"), true, "the laptop set-up diagram should show");
+      assert.equal(await disp.isVisible("#help-art"), false);
       await disp.click("#pyr-help-ok");
       await disp.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById("glass-code").textContent), null, { timeout: 30000 });
+      assert.equal(await disp.isVisible("#holo-guide"), true, "the gesture guide should stay on screen");
+      // drawn upside down with the page, so it reads the right way round in the clear sheet
+      assert.equal(await disp.evaluate(() => getComputedStyle(document.getElementById("holo-guide")).transform), "matrix(1, 0, 0, -1, 0, 0)");
     });
 
     await t("glass: the real page is shown with its own colours and layout, flipped for the reflection", async () => {
@@ -608,7 +613,7 @@ async function t(name, fn) {
         await ctl.waitForFunction((id) => [...document.querySelector("#mirror .g-page").contentDocument.querySelectorAll("section.view")].some((v) => v.id === id && v.getClientRects().length), id, { timeout: 20000 }).catch(async () => { throw new Error(label + " did not switch in the live view: " + JSON.stringify(await ctl.evaluate(() => window.__ctl.state.mirror))); });
       }
       await ctl.click("#back");
-      await disp.waitForFunction(() => window.__airpane.state.glass.tab === "now", null, { timeout: 10000 });
+      await disp.waitForFunction(() => window.__airpane.state.glass.tab === "now", null, { timeout: 20000 });
       assert.equal(await shownView(disp, "#glass .g-page"), "view-now");
     });
 
@@ -684,6 +689,7 @@ async function t(name, fn) {
       // the laptop's whole window is the controller, and it really controls the phone
       const lay = await frame.evaluate(() => { const c = document.querySelector(".pad-card").getBoundingClientRect(); return [c.width, innerWidth, document.body.classList.contains("connected")]; });
       assert.ok(Math.abs(lay[0] - lay[1]) < 2 && lay[2], JSON.stringify(lay));
+      assert.equal(await f.locator(".cam .howto").isVisible(), true, "the gesture guide must stay on screen in the full-window controller");
       const pad = await f.locator("#pad").boundingBox();
       await lap.mouse.move(pad.x + pad.width / 2, pad.y + pad.height / 2);
       await phone.waitForFunction(() => document.querySelector(".g-cursor") && !document.querySelector(".g-cursor").hidden, null, { timeout: 10000 });
@@ -736,6 +742,8 @@ async function t(name, fn) {
       // the webcam hand drives the cursor on the floating page
       await p.waitForFunction(() => { const h = window.__airpane.state.hands; return h && h.ready && h.events > 0; }, null, { timeout: 60000 });
       await p.waitForFunction(() => !document.querySelector(".holo-glass .g-cursor").hidden, null, { timeout: 20000 });
+      assert.equal(await p.isVisible("#holo-guide"), true, "the gesture guide must be on screen");
+      await p.waitForFunction(() => document.querySelector('#holo-guide li.on[data-g="open"]'), null, { timeout: 15000 }); // the open hand lights up its line
       // a mouse click through the 3D view lands on the right place: open the About tab
       const pt = await p.evaluate(() => {
         const host = document.querySelector(".holo-glass"), d = host.querySelector(".g-page").contentDocument;

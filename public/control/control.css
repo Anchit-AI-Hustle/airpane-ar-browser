@@ -72,7 +72,7 @@ body.big-view #big { background: rgba(8, 11, 20, 0.85); }
 /* ---------- Connected: the live page fills the whole window ----------
    A slim bar on top (address, Back, Forward, text size, hand control, full screen),
    the page in the rest of the window at the display's exact shape, and the camera as a
-   small picture in the corner (hover it for the gesture guide). */
+   small picture in the corner with the gesture guide under it. */
 body.connected { overflow: hidden; }
 body.connected .ctl { max-width: none; height: 100vh; height: 100dvh; padding: 0; display: flex; flex-direction: column; }
 body.connected .top { display: none; }
@@ -90,10 +90,10 @@ body.connected .grid { flex: 1; min-height: 0; display: block; position: relativ
 body.connected .pad-card { position: absolute; inset: 0; border: 0; border-radius: 0; padding: 0; background: #05070d; display: grid; place-items: center; container-type: size; }
 body.connected .pad-head, body.connected .pad-card > p { display: none; }
 body.connected .pad { width: min(100cqw, 100cqh * (var(--ar))); max-height: 100cqh; border-radius: 0; border-width: 0; }
-body.connected .cam { position: fixed; right: 12px; bottom: 12px; z-index: 45; width: clamp(140px, 14vw, 210px); padding: 6px; border-radius: 14px; background: rgba(10, 14, 26, 0.92); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+body.connected .cam { position: fixed; right: 12px; bottom: 12px; z-index: 45; width: clamp(200px, 17vw, 250px); padding: 6px; border-radius: 14px; background: rgba(10, 14, 26, 0.92); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
 body.connected .cam-box { border-radius: 10px; }
-body.connected .cam .howto { display: none; margin: 8px 4px 4px; font-size: 13px; }
-body.connected .cam:hover .howto, body.connected .cam:focus-within .howto { display: block; }
+body.connected .cam .howto { margin: 8px 2px 2px 16px; font-size: 12px; line-height: 1.45; }
+body.connected .cam .howto li + li { margin-top: 3px; }
 body.connected .cam .gesture { margin: 6px 4px 2px; font-size: 12px; }
 body.connected .gesture-flash { top: 12px; }
 @media (max-width: 760px) {
@@ -110,3 +110,9 @@ body.connected .gesture-flash { top: 12px; }
 /* Inside the home page: no second header, the home page is the only page */
 body.embed .top { display: none; }
 body.embed #pair { margin-top: max(16px, 6vh); }
+
+/* The guide line for the shape the camera sees right now */
+.howto li { transition: color 0.15s; }
+.howto li.on { color: var(--mint); }
+.howto li.on::marker { color: var(--mint); }
+.howto li.on b { color: var(--mint); }

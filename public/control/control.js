@@ -1,6 +1,6 @@
 // Laptop controller: webcam hand tracking (MediaPipe) or the trackpad drives the
 // cursor on the floating page, over a direct link to the display device.
-import { createGestures } from "/gestures.js";
+import { createGestures, gestureKind } from "/gestures.js";
 import { POSES } from "/poses.js";
 import { join, cleanCode, newCode } from "/link.js";
 import { renderBlocks, switchTab, pdfPage } from "/glass.js";
@@ -284,7 +284,7 @@ async function startCamera() {
   }
 }
 
-let lastVideoTime = -1, lastLm = null;
+let lastVideoTime = -1, lastLm = null, lastKind = "";
 window.__ctl.lastLandmarks = () => lastLm && lastLm.map((p) => [+p.x.toFixed(4), +p.y.toFixed(4)]);
 function tick(now) {
   requestAnimationFrame(tick);
@@ -307,6 +307,9 @@ function tick(now) {
   const g = gestures.state;
   S.pinched = g.pinched; S.pose = g.pose; S.paused = g.paused;
   $("gesture").textContent = !lm ? "No hand in view" : (POSES[g.pose] || "Hand seen");
+  // light up the guide line for the shape the camera sees right now
+  const k = lm ? gestureKind(g.pose) : "";
+  if (k !== lastKind) { lastKind = k; for (const li of document.querySelectorAll(".howto li[data-g]")) li.classList.toggle("on", li.dataset.g === k); }
 }
 
 let flashT = null;

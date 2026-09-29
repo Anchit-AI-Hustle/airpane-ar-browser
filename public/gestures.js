@@ -27,6 +27,9 @@ export const GESTURE_HELP = [
   ["Index finger, quick flick left / right", "back / forward"],
 ];
 
+// Which line of the gesture guide a hand shape belongs to (to highlight it live).
+export const gestureKind = (pose) => (OPEN.has(pose) ? "open" : pose === "fist" ? "fist" : INDEX.has(pose) ? "index" : "");
+
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 // Camera landmarks ({x, y}, not mirrored) -> mirrored [x, y] pairs, so moving your hand
 // to your right moves things right.
