@@ -27,6 +27,9 @@ body { background: radial-gradient(900px 500px at 80% 0%, rgba(122, 162, 255, 0.
 .cam-msg[hidden] { display: none; }
 .howto { margin: 12px 0 8px; padding-left: 18px; color: #c9d0e3; font-size: 14px; line-height: 1.6; }
 .gesture { min-height: 18px; }
+.cam { position: relative; }
+.gesture-flash { position: absolute; left: 50%; top: 28px; transform: translateX(-50%); z-index: 3; padding: 8px 14px; border-radius: 999px; background: rgba(3, 5, 10, 0.85); border: 1px solid rgba(124, 245, 211, 0.6); color: var(--mint); font: 700 15px/1 var(--display); pointer-events: none; }
+.gesture-flash[hidden] { display: none; }
 .pad-head { display: flex; flex-direction: column; gap: 2px; }
 /* The pad has the display's exact shape, so a point on it is the same point on the floating page. */
 .pad { --ar: 16 / 10; position: relative; aspect-ratio: var(--ar); width: min(100%, calc(62vh * (var(--ar)))); margin: 0 auto; border-radius: 12px; border: 1px solid rgba(124, 245, 211, 0.4); background: #000; cursor: none; outline: none; overflow: hidden; }

@@ -1,6 +1,7 @@
 // Laptop controller: webcam hand tracking (MediaPipe) or the trackpad drives the
 // cursor on the floating page, over a direct link to the display device.
 import { createGestures } from "/gestures.js";
+import { POSES } from "/poses.js";
 import { join, cleanCode } from "/link.js";
 import { renderBlocks } from "/glass.js";
 
@@ -189,13 +190,22 @@ function tick(now) {
   if (!handsOn) return;
   for (const ev of gestures.update(lm || null, now)) {
     if (ev.t === "cur") { sendCur(ev); showPad(ev); }
-    else if (ev.t === "click") { send(ev); S.events.click++; }
+    else if (ev.t === "click") { send(ev); S.events.click++; flash("Click"); }
     else if (ev.t === "scroll") { send(ev); S.events.scroll++; }
     else if (ev.t === "lost") { send(ev); lastCur = null; padCur.hidden = true; }
+    else if (ev.t === "back") { send({ t: "back" }); S.events.back = (S.events.back || 0) + 1; flash("Back"); }
+    else if (ev.t === "size") { send({ t: "size", up: ev.up }); flash(ev.up ? "Text bigger" : "Text smaller"); }
+    else if (ev.t === "pause") { flash(ev.value ? "Paused: hold a fist to resume" : "Resumed"); }
   }
   const g = gestures.state;
-  S.pinched = g.pinched;
-  $("gesture").textContent = !lm ? "No hand in view" : g.dragging ? "Scrolling" : g.pinched ? "Pinch" : "Pointing";
+  S.pinched = g.pinched; S.pose = g.pose; S.paused = g.paused;
+  $("gesture").textContent = !lm ? "No hand in view" : g.paused ? "Paused (hold a fist to resume)" : (POSES[g.pose] || "Hand seen");
+}
+
+let flashT = null;
+function flash(text) {
+  const el = $("gesture-flash"); el.textContent = text; el.hidden = false;
+  clearTimeout(flashT); flashT = setTimeout(() => { el.hidden = true; }, 1200);
 }
 
 function draw(lm) {
