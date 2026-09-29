@@ -50,18 +50,33 @@ ok("a brief pinch clicks once, where you pointed", () => {
   assert.equal(of(ev, "scroll").length, 0, "a pinch never scrolls any more");
 });
 
-ok("a long pinch does not click", () => {
-  const g = createGestures(); run.t = 0;
-  const ev = run(g, [["point", 0.3], ["pinch", 1.2], ["point", 0.3]]);
-  assert.equal(of(ev, "click").length, 0);
+ok("a slow pinch (up to a second) still clicks; a very long one does not", () => {
+  let g = createGestures(); run.t = 0;
+  assert.equal(of(run(g, [["point", 0.3], ["pinch", 1.0], ["point", 0.3]]), "click").length, 1);
+  g = createGestures(); run.t = 0;
+  assert.equal(of(run(g, [["point", 0.3], ["pinch", 1.6], ["point", 0.3]]), "click").length, 0);
 });
 
-ok("V sign moving up scrolls down the page, and never clicks or moves the cursor", () => {
+ok("open hand moving up scrolls down the page, and never clicks or moves the cursor", () => {
   const g = createGestures(); run.t = 0;
-  const ev = run(g, [["peace", 0.3, 0.5, 0.5, 0.62], ["peace", 0.6, 0.5, 0.5, 0.62, 0.38]]);
+  const ev = run(g, [["open_palm", 0.3, 0.5, 0.5, 0.62], ["open_palm", 0.6, 0.5, 0.5, 0.62, 0.38]]);
   const total = of(ev, "scroll").reduce((s, e) => s + e.dy, 0);
   assert.ok(total > 0.3, total);
-  assert.equal(of(ev, "click").length + of(ev, "cur").length, 0);
+  assert.equal(of(ev, "click").length + of(ev, "cur").length + of(ev, "back").length, 0);
+  const down = of(run(g, [["open_palm", 0.6, 0.5, 0.5, 0.38, 0.62]]), "scroll").reduce((s, e) => s + e.dy, 0);
+  assert.ok(down < -0.3, down);
+});
+
+ok("a loose point (V sign) still moves the cursor and never scrolls", () => {
+  const g = createGestures(); run.t = 0;
+  const ev = run(g, [["peace", 0.3, 0.35], ["peace", 1, 0.35, 0.65, 0.4, 0.6]]);
+  assert.ok(of(ev, "cur").length > 20);
+  assert.equal(of(ev, "scroll").length + of(ev, "click").length, 0);
+});
+
+ok("pointing and moving up or down never scrolls", () => {
+  const g = createGestures(); run.t = 0;
+  assert.equal(of(run(g, [["point", 1, 0.5, 0.5, 0.3, 0.7]]), "scroll").length, 0);
 });
 
 ok("pinching and moving no longer scrolls (the old clash)", () => {
@@ -70,10 +85,11 @@ ok("pinching and moving no longer scrolls (the old clash)", () => {
   assert.equal(of(ev, "scroll").length, 0);
 });
 
-ok("open hand swiped left goes back, once", () => {
+ok("open hand flicked left goes back, once, with almost no scrolling", () => {
   const g = createGestures(); run.t = 0;
   const ev = run(g, [["open_palm", 0.3, 0.7], ["open_palm", 0.25, 0.7, 0.3], ["open_palm", 0.4, 0.3]]);
   assert.equal(of(ev, "back").length, 1);
+  assert.ok(Math.abs(of(ev, "scroll").reduce((s, e) => s + e.dy, 0)) < 0.02);
 });
 
 ok("slow drift with an open hand does nothing", () => {
@@ -93,7 +109,7 @@ ok("holding a fist pauses; while paused nothing happens; fist again resumes", ()
   const g = createGestures(); run.t = 0;
   let ev = run(g, [["point", 0.3], ["fist", 1.3]]);
   assert.deepEqual(of(ev, "pause").map((e) => e.value), [true]);
-  ev = run(g, [["point", 0.5, 0.3, 0.7], ["pinch", 0.2], ["point", 0.2], ["peace", 0.5, 0.5, 0.5, 0.6, 0.4]]);
+  ev = run(g, [["point", 0.5, 0.3, 0.7], ["pinch", 0.2], ["point", 0.2], ["open_palm", 0.5, 0.5, 0.5, 0.6, 0.4]]);
   assert.equal(ev.filter((e) => ["cur", "click", "scroll"].includes(e.t)).length, 0);
   ev = run(g, [["point", 0.2], ["fist", 1.3], ["point", 0.4, 0.3, 0.6]]);
   assert.deepEqual(of(ev, "pause").map((e) => e.value), [false]);
@@ -104,6 +120,14 @@ ok("a one-frame glitch does not click", () => {
   const g = createGestures(); run.t = 0;
   const ev = run(g, [["point", 0.4], ["pinch", 1 / FPS], ["point", 0.4]]);
   assert.equal(of(ev, "click").length, 0);
+});
+
+ok("a single missed tracking frame does not interrupt scrolling", () => {
+  const g = createGestures(); run.t = 0;
+  let ev = run(g, [["open_palm", 0.3, 0.5, 0.5, 0.62]]);
+  ev = [...ev, ...run(g, [["open_palm", 0.3, 0.5, 0.5, 0.62, 0.5], [null, 1 / FPS], ["open_palm", 0.3, 0.5, 0.5, 0.5, 0.38]])];
+  assert.equal(of(ev, "lost").length, 0);
+  assert.ok(of(ev, "scroll").reduce((s, e) => s + e.dy, 0) > 0.3);
 });
 
 ok("losing the hand reports it", () => {

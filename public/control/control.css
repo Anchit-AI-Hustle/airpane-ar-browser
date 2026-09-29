@@ -11,7 +11,7 @@ body { background: radial-gradient(900px 500px at 80% 0%, rgba(122, 162, 255, 0.
 .pair-form { display: flex; gap: 8px; margin-top: 14px; }
 #code { flex: 1; min-width: 0; font: 700 34px/1 var(--display); letter-spacing: 0.3em; text-transform: uppercase; text-align: center; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); outline: none; }
 #code:focus { border-color: rgba(124, 245, 211, 0.7); }
-.ctl-panel { display: grid; gap: 14px; margin-top: 16px; }
+.ctl-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 16px; }
 .now-row { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 10px var(--mint); flex: none; }
 .dot.off { background: #ff8a8a; box-shadow: none; }

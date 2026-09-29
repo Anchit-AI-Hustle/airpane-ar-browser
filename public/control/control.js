@@ -178,7 +178,8 @@ async function startCamera() {
   }
 }
 
-let lastVideoTime = -1;
+let lastVideoTime = -1, lastLm = null;
+window.__ctl.lastLandmarks = () => lastLm && lastLm.map((p) => [+p.x.toFixed(4), +p.y.toFixed(4)]);
 function tick(now) {
   requestAnimationFrame(tick);
   if (!landmarker || video.readyState < 2 || video.currentTime === lastVideoTime) return;
@@ -186,7 +187,7 @@ function tick(now) {
   let lm = null;
   try { const r = landmarker.detectForVideo(video, now); lm = r.landmarks && r.landmarks[0]; } catch { return; }
   draw(lm);
-  S.hand = Boolean(lm);
+  S.hand = Boolean(lm); lastLm = lm;
   if (!handsOn) return;
   for (const ev of gestures.update(lm || null, now)) {
     if (ev.t === "cur") { sendCur(ev); showPad(ev); }

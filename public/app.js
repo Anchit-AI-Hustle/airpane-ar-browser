@@ -344,7 +344,6 @@ async function enterAR(raw) {
   launchBtn.disabled = true;
   const mode = (document.querySelector('input[name="mode"]:checked') || {}).value;
   view = mode === "pyramid" || mode === "glass" ? mode : pickView();
-  if (FLOAT(view)) goFullscreen(); // must happen inside the tap
   const orientP = view === "room" ? requestOrientation() : Promise.resolve(false); // first call inside the tap on iPhone
   const camP = FLOAT(view) ? Promise.resolve(false) : startCamera(view === "holo" ? "user" : "environment");
   const [, camOk] = await Promise.all([orientP, camP]);
@@ -435,7 +434,7 @@ const HELP = {
     steps: `<li>Lay this phone or iPad flat, screen up, brightness high, with the bottom edge of the screen towards you. Lock screen rotation first.</li>
       <li>Lean a clear acrylic sheet (or a glass photo frame without its back) over it at about <b>45°</b>: bottom edge on the far side of the screen, top edge rising towards you.</li>
       <li>Dim the room and sit so your eyes are level with the sheet. The page stands in the air behind it.</li>
-      <li>On your laptop open <b>airpane.anchit-tandon.com/control</b> and type the code shown here. Point at the webcam to move the cursor, pinch briefly to click, make a V sign and move up or down to scroll, swipe an open hand left to go back.</li>`,
+      <li>On your laptop open <b>airpane.anchit-tandon.com/control</b> and type the code shown here. Point with your index finger to move the cursor, pinch to click, move an open hand up or down to scroll, flick an open hand left to go back.</li>`,
   },
 };
 function showHelp() {
@@ -513,10 +512,6 @@ function pokeUI() {
     if (FLOAT(view) && helpEl.hidden && !ar.contains(document.activeElement)) ar.classList.add("ui-hidden");
   }, 5000);
 }
-function goFullscreen() {
-  const el = document.documentElement;
-  try { const p = el.requestFullscreen && el.requestFullscreen({ navigationUI: "hide" }); if (p && p.catch) p.catch(() => {}); } catch {}
-}
 let wake = null;
 async function keepAwake(on) {
   try {
@@ -535,7 +530,6 @@ function exitAR() {
   keepAwake(false);
   clearTimeout(uiTimer);
   helpEl.hidden = true;
-  try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch {}
   ar.classList.remove("holo", "pyr", "glassv", "ui-hidden");
   removeEventListener("deviceorientation", onOrientation);
   stopCamera();
