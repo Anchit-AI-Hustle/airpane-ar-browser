@@ -101,3 +101,12 @@ body.connected .gesture-flash { top: 12px; }
   body.connected .cam { width: 120px; }
   body.connected #now-hover { max-width: calc(100% - 160px); }
 }
+
+/* Pairing card: title with a way back to the start */
+.pair-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pair-top h1 { margin: 0; }
+#pair-open { margin: 6px 0 0; }
+#pair-open[hidden] { display: none; }
+/* Inside the home page: no second header, the home page is the only page */
+body.embed .top { display: none; }
+body.embed #pair { margin-top: max(16px, 6vh); }

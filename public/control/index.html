@@ -19,7 +19,8 @@
     <header class="top"><a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Airpane<span class="beta">controller</span></a></header>
 
     <section id="pair" class="card">
-      <h1>Pair your phone or iPad</h1>
+      <div class="pair-top"><h1>Pair your phone or iPad</h1><button id="pair-home" class="chip" type="button">Back</button></div>
+      <p id="pair-open" class="muted small" hidden></p>
       <div class="qr-row">
         <div id="qr" class="qr" role="img" aria-label="QR code that opens Airpane on your phone, already paired"></div>
         <div class="qr-side">
@@ -55,6 +56,7 @@
           <button id="bigger" class="chip" type="button">Text +</button>
           <button id="hands" class="chip on" type="button" aria-pressed="true">Hand control: on</button>
           <button id="big" class="chip" type="button" aria-pressed="false">Full screen</button>
+          <button id="home" class="chip" type="button">Exit</button>
         </div>
       </div>
 

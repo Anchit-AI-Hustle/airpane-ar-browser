@@ -20,11 +20,13 @@
 .promo:hover { border-color: rgba(124, 245, 211, 0.7); transform: translateY(-1px); }
 .promo-tag { flex: none; font: 700 11px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: #04110c; background: var(--mint); border-radius: 6px; padding: 5px 7px; }
 .promo-go { flex: none; margin-left: auto; color: var(--mint); font-weight: 600; white-space: nowrap; }
-.ctl-cta { display: flex; align-items: center; gap: 12px; max-width: 560px; margin: 0 0 18px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(124, 245, 211, 0.35); background: rgba(124, 245, 211, 0.06); color: var(--ink); text-decoration: none; transition: border-color 0.15s, background 0.15s; }
-.ctl-cta:hover { border-color: rgba(124, 245, 211, 0.7); background: rgba(124, 245, 211, 0.1); }
-.ctl-cta b { display: block; font-size: 15px; }
-.ctl-cta small { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; margin-top: 2px; }
-.ctl-ico { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: rgba(124, 245, 211, 0.14); color: var(--mint); }
+.launch .launch-code { flex: 0 0 118px; border-left: 1px solid var(--line); border-radius: 0; min-width: 0; text-transform: uppercase; letter-spacing: 0.14em; text-align: center; font-weight: 700; }
+.launch .launch-code::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; }
+.launch-code[hidden] { display: none; }
+.ctl-shell { position: fixed; inset: 0; z-index: 100; background: #05070d; }
+.ctl-shell[hidden] { display: none; }
+.ctl-shell iframe { width: 100%; height: 100%; border: 0; display: block; }
+@media (max-width: 520px) { .launch .launch-code { flex-basis: 92px; } }
 @media (max-width: 600px) { .promo { flex-wrap: wrap; } .promo-go { margin-left: 0; } }
   </style>
 </head>
@@ -42,17 +44,19 @@
         <h1>Open any website<br /><span class="grad">in the air.</span></h1>
         <p class="lede">Lay a phone or iPad flat, lean a clear acrylic sheet over it, and the website stands in the air behind the sheet. Control it from your laptop with simple hand gestures at the webcam. No glasses, no app.</p>
 
-        <a class="ctl-cta" href="/control"><span class="ctl-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10m0-1.5a1.5 1.5 0 0 1 3 0V10m0-.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-.6a6 6 0 0 1-4.9-2.6L3.8 14a1.5 1.5 0 0 1 2.4-1.8L8 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>Control it by hand from this laptop</b><small>Shows a QR code. Scan it with your phone and they pair by themselves.</small></span><span class="promo-go" aria-hidden="true">Start</span></a>
 
         <div class="modes" role="radiogroup" aria-label="How to show the page">
           <label class="mode-opt"><input type="radio" name="mode" value="glass" checked /><span><b>Floating glass</b><small>Big page in the air. Needs a clear sheet. Hand control.</small></span></label>
           <label class="mode-opt"><input type="radio" name="mode" value="pyramid" /><span><b>Floating pyramid</b><small>Small page in mid-air. Needs a clear pyramid.</small></span></label>
           <label class="mode-opt"><input type="radio" name="mode" value="screen" /><span><b>3D on screen</b><small>No pyramid. Uses the camera for depth.</small></span></label>
+          <label class="mode-opt"><input type="radio" name="mode" value="control" /><span><b>Hand controller</b><small>Control the floating page from this laptop's camera.</small></span></label>
         </div>
 
         <form id="launch-form" class="launch" autocomplete="off">
           <label class="sr" for="launch-input">Search or type a URL</label>
           <input id="launch-input" name="q" type="text" inputmode="url" placeholder="Search or type a URL" enterkeyhint="go" />
+          <label class="sr" for="launch-code">Code shown on the phone</label>
+          <input id="launch-code" class="launch-code" name="code" type="text" maxlength="4" autocapitalize="characters" spellcheck="false" placeholder="Phone code" title="Already showing a code on the phone? Type it here. Otherwise leave it empty and scan the QR code next." hidden />
           <button type="submit" class="btn-primary" id="launch-btn">Launch<span aria-hidden="true">→</span></button>
         </form>
 
@@ -88,7 +92,7 @@
 
     <section class="how">
       <div class="step"><span>1</span><h3>Set up the glass</h3><p>Lay the phone or iPad flat and lean a clear acrylic sheet over it at 45°, resting on the far edge and rising towards you.</p></div>
-      <div class="step"><span>2</span><h3>Pair your laptop</h3><p>On the laptop, open this page and press "Control it by hand from this laptop". Scan the QR code with the phone. Nothing to type.</p></div>
+      <div class="step"><span>2</span><h3>Pair your laptop</h3><p>On the laptop, open this same page, choose Hand controller, type the site and press Launch. Scan the QR code with the phone, or type the phone's code before pressing Launch.</p></div>
       <div class="step"><span>3</span><h3>Use it in the air</h3><p>Move an open hand to move the cursor, make a fist to click, move your index finger up or down to scroll, flick it left or right to go back or forward.</p></div>
     </section>
 
@@ -102,7 +106,7 @@
     <div id="pyr" class="pyr" hidden></div>
     <div id="glass" class="glass" hidden></div>
     <div id="glass-pair" class="glass-pair" hidden>
-      <p><b>Hand control:</b> open <b>airpane.anchit-tandon.com</b> on a laptop, press <b>Control it by hand</b> and scan its QR code. Or type:</p>
+      <p><b>Hand control:</b> on a laptop open <b>airpane.anchit-tandon.com</b>, choose <b>Hand controller</b>, and type this code next to the site:</p>
       <div class="code" id="glass-code">....</div>
       <p id="glass-pair-note">Tap this card to hide it.</p>
     </div>
@@ -188,6 +192,9 @@
   </div>
 
   <div id="toast" class="toast" role="alert" hidden></div>
+
+  <!-- HAND CONTROLLER: opens on this same page -->
+  <div id="ctl-shell" class="ctl-shell" hidden></div>
 
   <script type="module" src="/app.js"></script>
 </body>

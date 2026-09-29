@@ -40,6 +40,7 @@ async function t(name, fn) {
 
   await t("display opens a page and the controller pairs", async () => {
     await disp.goto(BASE + "/" + PQ, { waitUntil: "load" });
+    await disp.click(".mode-opt:has(input[value=glass])"); // this screen is the floating display
     await disp.click("#landing .chip >> text=Wikipedia");
     await disp.click("#pyr-help-ok");
     await disp.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById("glass-code").textContent), null, { timeout: 30000 });

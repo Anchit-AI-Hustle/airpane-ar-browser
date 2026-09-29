@@ -21,6 +21,14 @@ function send(m) { if (link) link.send(m); }
 // The laptop shows a QR code for its own code; the phone that scans it opens the
 // floating page listening under that code, and this page connects by itself.
 // Typing the code a phone already shows still works too.
+const P = new URLSearchParams(location.search);
+const EMBED = P.get("embed") === "1";        // opened inside the home page
+let openUrl = P.get("open") || "";            // the site to show once connected
+if (EMBED) document.body.classList.add("embed");
+if (openUrl) { $("pair-open").textContent = "Opening " + openUrl.replace(/^https?:\/\//, "") + " on the phone once it's connected."; $("pair-open").hidden = false; }
+function goHome() { if (EMBED && parent !== window) parent.postMessage({ type: "airpane-close" }, location.origin); else location.href = "/"; }
+$("pair-home").addEventListener("click", goHome);
+$("home").addEventListener("click", () => { if (link) link.close(); goHome(); });
 const codeIn = $("code");
 codeIn.addEventListener("input", () => { codeIn.value = cleanCode(codeIn.value); });
 let qrWait = null;
@@ -30,10 +38,14 @@ async function connect(code, { wait = 0 } = {}) {
   if (link) { l.close(); return; } // the other way of pairing got there first
   link = l;
   if (qrWait) qrWait.abort();
+  // Typed the code of a phone that was already showing something: open the chosen site on it.
+  // (A phone that scanned the QR code opens the site from the link itself.)
+  if (openUrl && !wait) send({ t: "load", url: openUrl });
+  openUrl = "";
   document.body.classList.add("connected"); // the live page now fills the window
   send({ t: "hello" });
   $("pair").hidden = true; $("panel").hidden = false;
-  const q = new URLSearchParams(location.search); q.set("code", code);
+  const q = new URLSearchParams(location.search); q.set("code", code); q.delete("open");
   history.replaceState(null, "", "?" + q.toString());
   startCamera();
 }
@@ -41,6 +53,7 @@ async function connect(code, { wait = 0 } = {}) {
 function showQR() {
   const code = newCode();
   const q = new URLSearchParams({ pair: code });
+  if (openUrl) q.set("open", openUrl);
   const peer = new URLSearchParams(location.search).get("peer");
   if (peer) q.set("peer", peer);
   const url = location.origin + "/?" + q.toString();

@@ -567,6 +567,7 @@ function exitAR() {
 
 addEventListener("popstate", (e) => {
   const s = e.state;
+  if (!shell.hidden && !(s && s.ctl)) return closeController();
   if (!running) return;
   if (!s || !s.ar) return exitAR();
   if (s.url && s.url !== current) loadURL(s.url, { push: false });
@@ -579,16 +580,71 @@ let pairCode = cleanCode(new URLSearchParams(location.search).get("pair") || "")
 if (pairCode.length === 4) {
   const r = document.querySelector('input[name="mode"][value="glass"]');
   if (r) r.checked = true;
-  enterAR("https://en.m.wikipedia.org/wiki/Augmented_reality");
+  enterAR(new URLSearchParams(location.search).get("open") || "https://en.m.wikipedia.org/wiki/Augmented_reality");
 } else pairCode = "";
+
+// ---------- this device as the hand controller, on this same page ----------
+// Pick "Hand controller", type the site (and the phone's code if it already shows one),
+// press Launch: the controller opens right here and the phone shows the site.
+const modeRadios = [...document.querySelectorAll('input[name="mode"]')];
+const codeInput = $("launch-code"), shell = $("ctl-shell");
+let shellFrame = null;
+const isLaptop = () => matchMedia("(pointer: fine)").matches && innerWidth >= 900;
+const modeNow = () => (document.querySelector('input[name="mode"]:checked') || {}).value;
+function syncMode() {
+  const ctl = modeNow() === "control";
+  codeInput.hidden = !ctl;
+  launchInput.placeholder = ctl ? "Site to open on the phone" : "Search or type a URL";
+}
+if (!pairCode) {
+  let saved = null;
+  try { saved = localStorage.getItem("airpane-mode"); } catch {}
+  const want = saved || (isLaptop() ? "control" : "glass");
+  const r = modeRadios.find((x) => x.value === want);
+  if (r) r.checked = true;
+}
+modeRadios.forEach((r) => r.addEventListener("change", () => { try { localStorage.setItem("airpane-mode", r.value); } catch {} syncMode(); }));
+codeInput.addEventListener("input", () => { codeInput.value = cleanCode(codeInput.value); });
+syncMode();
+
+function openController(raw) {
+  const url = normalizeInput(raw || "https://en.m.wikipedia.org/wiki/Augmented_reality");
+  const q = new URLSearchParams({ embed: "1", open: url });
+  const code = cleanCode(codeInput.value);
+  if (code.length === 4) q.set("code", code);
+  const peer = new URLSearchParams(location.search).get("peer");
+  if (peer) q.set("peer", peer);
+  // A fresh frame each time (its address is set before it is added), so the browser's
+  // Back button closes the controller instead of stepping back inside it.
+  if (shellFrame) shellFrame.remove();
+  shellFrame = document.createElement("iframe");
+  shellFrame.id = "ctl-frame"; shellFrame.title = "Hand controller";
+  shellFrame.allow = "camera; fullscreen; autoplay; clipboard-write";
+  shellFrame.src = "/control?" + q.toString();
+  shell.append(shellFrame);
+  shell.hidden = false; landing.hidden = true;
+  history.pushState({ ctl: 1 }, "");
+  shellFrame.focus();
+}
+function closeController() {
+  shell.hidden = true; landing.hidden = false;
+  if (shellFrame) { shellFrame.remove(); shellFrame = null; } // stops its camera too
+}
+addEventListener("message", (e) => {
+  if (e.origin !== location.origin || !e.data || e.data.type !== "airpane-close") return;
+  closeController();
+  if (history.state && history.state.ctl) history.back();
+});
+window.__airpane_ctl = { get open() { return !shell.hidden; }, get frame() { return shellFrame; } };
 
 // ---------- wiring ----------
 $("launch-form").addEventListener("submit", (e) => {
   e.preventDefault();
+  if (modeNow() === "control") return openController(launchInput.value);
   enterAR(launchInput.value || "https://en.m.wikipedia.org/wiki/Augmented_reality");
 });
 document.querySelectorAll("#landing .chip").forEach((b) =>
-  b.addEventListener("click", () => { launchInput.value = b.dataset.url; enterAR(b.dataset.url); })
+  b.addEventListener("click", () => { launchInput.value = b.dataset.url; if (modeNow() === "control") openController(b.dataset.url); else enterAR(b.dataset.url); })
 );
 $("url-form").addEventListener("submit", (e) => { e.preventDefault(); loadURL(urlInput.value); });
 $("exit-btn").addEventListener("click", () => { exitAR(); history.replaceState(null, ""); });
