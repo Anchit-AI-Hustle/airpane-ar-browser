@@ -11,7 +11,7 @@
   "license": "ISC",
   "devDependencies": {
     "peer": "^1.0.2",
-    "three": "^0.186.0"
+    "three": "^0.186.1"
   },
   "private": true,
   "engines": {
