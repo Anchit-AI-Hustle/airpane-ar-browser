@@ -44,7 +44,7 @@ async function t(name, fn) {
     });
 
     await t(`${label}: the set-up card's buttons are on screen without scrolling`, async () => {
-      await p.goto(BASE + "/", { waitUntil: "domcontentloaded" });
+      await p.goto(BASE + "/", { waitUntil: "domcontentloaded" }); await p.waitForFunction(() => window.__airpane, null, { timeout: 30000 });
       await p.evaluate(() => { try { localStorage.clear(); } catch {} });
       await p.tap("#landing .chip >> text=Wikipedia");
       await p.waitForSelector("#pyr-help:not([hidden])");
