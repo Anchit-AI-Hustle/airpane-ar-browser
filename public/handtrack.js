@@ -1,7 +1,7 @@
 // Hand control from this device's own camera (used by the laptop Hologram, where no
 // phone is involved). Same gestures as the laptop controller:
 //   open hand moves the cursor, closing it into a fist clicks,
-//   index finger up / down scrolls, a quick index flick left / right goes back / forward.
+//   point up / down scrolls, point left / right goes back / forward, pinch and swing throws.
 import { createGestures } from "./gestures.js";
 
 const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1";
@@ -9,6 +9,7 @@ const HAND_MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmar
 
 export function createHandTracker(video, onEvent) {
   const gestures = createGestures();
+  const recent = []; // the last few events, for tests and debugging
   let landmarker = null, loading = null, running = false, raf = 0, lastT = -1, hand = false, events = 0;
   async function load() {
     const { FilesetResolver, HandLandmarker } = await import(MP + "/vision_bundle.mjs");
@@ -26,10 +27,10 @@ export function createHandTracker(video, onEvent) {
     try { r = landmarker.detectForVideo(video, now); } catch { return; }
     const lm = r && r.landmarks && r.landmarks[0];
     hand = Boolean(lm);
-    for (const ev of gestures.update(lm || null, now)) { events++; onEvent(ev); }
+    for (const ev of gestures.update(lm || null, now)) { events++; recent.push({ ...ev, at: Math.round(now) }); if (recent.length > 40) recent.shift(); onEvent(ev); }
   }
   return {
-    get state() { return { ready: Boolean(landmarker), running, hand, pose: gestures.state.pose, events }; },
+    get state() { return { ready: Boolean(landmarker), running, hand, pose: gestures.state.pose, dir: gestures.state.dir, events, recent: recent.slice() }; },
     async start() {
       running = true;
       try { landmarker = landmarker || (await (loading ||= load())); } catch { running = false; return false; }

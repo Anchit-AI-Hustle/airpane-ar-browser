@@ -101,7 +101,7 @@ export function createGlass(root, { onState } = {}) {
   const frame = root.querySelector(".g-page");
   // mode "page": the real site (its layout, colours, images) in a sandboxed frame with
   // its scripts removed. mode "reader": clean text, used when the real page can't be shown.
-  const s = { on: false, flip: true, mode: "reader", scale: 1, url: "", title: "", y: 0, cur: null, hover: null, history: [], fwd: [], loading: false, error: "", tab: "" };
+  const s = { air: "", throws: 0, on: false, flip: true, mode: "reader", scale: 1, url: "", title: "", y: 0, cur: null, hover: null, history: [], fwd: [], loading: false, error: "", tab: "" };
   let loadId = 0;
 
   const pageDoc = () => (s.mode === "page" ? frame.contentDocument : null);
@@ -125,7 +125,7 @@ export function createGlass(root, { onState } = {}) {
     return { mode: "reader", w: doc.clientWidth, h: doc.clientHeight, fs: parseFloat(cs.fontSize) || 20, pad: cs.padding };
   };
   const hoverText = () => (s.hover ? (s.hover.textContent || s.hover.getAttribute("aria-label") || s.hover.href || "").replace(/\s+/g, " ").trim().slice(0, 90) : "");
-  const state = () => ({ url: s.url, tab: s.tab, title: s.title, mode: s.mode, y: s.y, max: maxY(), hover: hoverText(), loading: s.loading, error: s.error, flip: s.flip, canBack: s.history.length > 0, canForward: s.fwd.length > 0, view: layout() });
+  const state = () => ({ air: s.air, throws: s.throws, url: s.url, tab: s.tab, title: s.title, mode: s.mode, y: s.y, max: maxY(), hover: hoverText(), loading: s.loading, error: s.error, flip: s.flip, canBack: s.history.length > 0, canForward: s.fwd.length > 0, view: layout() });
   const emit = () => onState && onState(state());
   let resizeT = null;
   // Screen rotation, window size or text size changes: tell the laptop the new layout.
@@ -257,6 +257,14 @@ export function createGlass(root, { onState } = {}) {
   }
 
   // Back / forward: another tab of the same page switches in place; anything else reloads.
+  let airT = 0;
+  // the held card's centre, as offsets from the middle (in % of the page as the viewer sees it,
+  // which is the page's own layout: the flip only turns it round for the sheet to turn back).
+  // --sy is the same point on this screen, for effects drawn outside the flipped layer.
+  function placeCard(x, y) {
+    root.style.setProperty("--cx", (x - 0.5) * 100 + "%"); root.style.setProperty("--cy", (y - 0.5) * 100 + "%");
+    root.style.setProperty("--sx", x * 100 + "%"); root.style.setProperty("--sy", (s.flip ? 1 - y : y) * 100 + "%");
+  }
   async function go(h) {
     if (h.url === s.url && s.mode === "page" && h.tab) { showTab(h.tab, null, false); s.y = h.y; applyScroll(); emit(); return; }
     await load(h.url, { push: false });
@@ -316,6 +324,40 @@ export function createGlass(root, { onState } = {}) {
         if (out.length >= max) break;
       }
       return out;
+    },
+    // Pinch and throw. x, y: where the hand is, 0..1 as the viewer sees it.
+    // grab: the page shrinks into a card held in the hand; hold: the card follows the hand;
+    // throw: it flies out from the hand, away from the device, and opens up full size in the
+    // air; drop: it settles back.
+    grab(x, y) {
+      clearTimeout(airT);
+      root.classList.remove("thrown", "dropping");
+      s.air = "held"; placeCard(x, y);
+      root.classList.add("held");
+      cursorEl.hidden = true;
+    },
+    hold(x, y) { if (s.air === "held") placeCard(x, y); },
+    throw(vx = 0, vy = -1) {
+      if (s.air !== "held") return;
+      const sp = Math.hypot(vx, vy) || 1, k = Math.min(0.35, 0.12 * sp) / sp;
+      // where it flies to before opening up: further along the swing
+      const cx = parseFloat(root.style.getPropertyValue("--cx")) || 0, cy = parseFloat(root.style.getPropertyValue("--cy")) || 0;
+      root.style.setProperty("--tx", Math.max(-45, Math.min(45, cx + vx * k * 100)) + "%");
+      root.style.setProperty("--ty", Math.max(-45, Math.min(45, cy + vy * k * 100)) + "%");
+      s.air = "thrown"; s.throws++;
+      root.classList.remove("held"); void root.offsetWidth; root.classList.add("thrown");
+      const b = document.createElement("div"); b.className = "g-burst";
+      b.style.left = root.style.getPropertyValue("--sx") || "50%";
+      b.style.top = root.style.getPropertyValue("--sy") || "50%";
+      root.append(b); setTimeout(() => b.remove(), 900);
+      airT = setTimeout(() => { root.classList.remove("thrown"); s.air = ""; }, 900);
+      emit();
+    },
+    drop() {
+      if (s.air !== "held") return;
+      s.air = "";
+      root.classList.remove("held"); void root.offsetWidth; root.classList.add("dropping");
+      airT = setTimeout(() => root.classList.remove("dropping"), 350);
     },
     refresh() { applyScroll(); emit(); },
     el: { flip, doc, content, frame, cursor: cursorEl },

@@ -1,6 +1,6 @@
 // Real browser + real MediaPipe hand tracking + a fake webcam of real hand photos:
-// the index finger must scroll the floating page and a fist must click. (Swipes need a faster
-// machine than this sandbox; they are covered with real recorded hands in gestures.test.mjs.)
+// pointing down must scroll the floating page down and a fist must click. (Pointing left / right for back /
+// forward is covered with real recorded hands in gestures.test.mjs.)
 const { chromium, devices } = require("playwright");
 // MOBILE=1 runs both the display and the controller as phones (Pixel 7, touch).
 const MOBILE = process.env.MOBILE === "1";
@@ -64,7 +64,7 @@ async function t(name, fn) {
 
   const seen = new Set();
   let y0 = 0;
-  await t("moving the index finger down scrolls the floating page down, without clicking", async () => {
+  await t("pointing down scrolls the floating page down, without clicking", async () => {
     y0 = (await disp.evaluate(() => window.__airpane.state.glass)).y || 0;
     const until = Date.now() + 45000;
     let clicks = (await ctl.evaluate(() => window.__ctl.state.events.click)), recent = [];
@@ -92,8 +92,9 @@ async function t(name, fn) {
   await t("the controller shows the gesture guide", async () => {
     const txt = await ctl.textContent(".howto");
     assert.match(txt, /Close the open hand into a fist/);
-    assert.match(txt, /Index finger, move up \/ down/);
-    assert.match(txt, /quick flick left \/ right/);
+    assert.match(txt, /Point up \/ down/);
+    assert.match(txt, /Point left \/ right/);
+    assert.doesNotMatch(txt, /flick/i);
     assert.doesNotMatch(txt, /Thumbs/);
   });
 

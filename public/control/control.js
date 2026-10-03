@@ -302,14 +302,15 @@ function tick(now) {
     else if (ev.t === "lost") { send(ev); lastCur = null; padCur.hidden = true; }
     else if (ev.t === "back") { send({ t: "back" }); S.events.back = (S.events.back || 0) + 1; flash("Back"); }
     else if (ev.t === "forward") { send({ t: "forward" }); S.events.forward = (S.events.forward || 0) + 1; flash("Forward"); }
+    else if (ev.t === "grab" || ev.t === "hold" || ev.t === "throw" || ev.t === "drop") { send(ev); if (ev.t === "throw") flash("Thrown"); }
     else if (ev.t === "size") { send({ t: "size", up: ev.up }); flash(ev.up ? "Text bigger" : "Text smaller"); }
   }
   const g = gestures.state;
   S.pinched = g.pinched; S.pose = g.pose; S.paused = g.paused;
-  $("gesture").textContent = !lm ? "No hand in view" : (POSES[g.pose] || "Hand seen");
+  $("gesture").textContent = !lm ? "No hand in view" : g.dir ? "Pointing " + g.dir : (POSES[g.pose] || "Hand seen");
   // light up the guide line for the shape the camera sees right now
-  const k = lm ? gestureKind(g.pose) : "";
-  if (k !== lastKind) { lastKind = k; for (const li of document.querySelectorAll(".howto li[data-g]")) li.classList.toggle("on", li.dataset.g === k); }
+  const k = lm ? gestureKind(g.pose, g.dir) : "";
+  if (k !== lastKind) { lastKind = k; for (const li of document.querySelectorAll(".howto li[data-g]")) li.classList.toggle("on", Boolean(k) && li.dataset.g.split(" ").includes(k)); }
 }
 
 let flashT = null;

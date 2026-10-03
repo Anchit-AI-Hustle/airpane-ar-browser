@@ -474,18 +474,24 @@ function stopSelfGlass() {
   clearInterval(guideTimer);
   $("holo-guide").hidden = true;
 }
+function onHandEvent(ev) {
+  const g = handTarget();
+  if (!g) return;
+  if (!handHinted) { handHinted = true; hint("Hand seen. Open hand moves, a fist clicks, point up or down to scroll, point left or right for back or forward, pinch and swing to throw.", 5000); }
+  if (ev.t === "cur") g.cursor(ev.x, ev.y);
+  else if (ev.t === "click") { g.click(ev.x, ev.y); hint("Click", 900); }
+  else if (ev.t === "scroll") g.scroll(ev.dy);
+  else if (ev.t === "back") { g.back(); hint("Back", 900); }
+  else if (ev.t === "forward") { g.forward(); hint("Forward", 900); }
+  else if (ev.t === "lost") g.hideCursor();
+  // pinch and throw
+  else if (ev.t === "grab") { g.grab(ev.x, ev.y); hint("Got it. Swing your hand and let go to throw it.", 2500); }
+  else if (ev.t === "hold") g.hold(ev.x, ev.y);
+  else if (ev.t === "throw") { g.throw(ev.vx, ev.vy); hint("Thrown into the air", 1200); }
+  else if (ev.t === "drop") g.drop();
+}
 async function startHands() {
-  hands = hands || createHandTracker(cam, (ev) => {
-    const g = handTarget();
-    if (!g) return;
-    if (!handHinted) { handHinted = true; hint("Hand seen. Open hand moves, a fist clicks, index finger scrolls, flick to go back.", 4500); }
-    if (ev.t === "cur") g.cursor(ev.x, ev.y);
-    else if (ev.t === "click") { g.click(ev.x, ev.y); hint("Click", 900); }
-    else if (ev.t === "scroll") g.scroll(ev.dy);
-    else if (ev.t === "back") { g.back(); hint("Back", 900); }
-    else if (ev.t === "forward") { g.forward(); hint("Forward", 900); }
-    else if (ev.t === "lost") g.hideCursor();
-  });
+  hands = hands || createHandTracker(cam, onHandEvent);
   $("holo-hand").textContent = "Starting hand tracking";
   const ok = await hands.start();
   if (!ok) { toast("Hand tracking could not load. Use the mouse on the floating page."); $("holo-hand").textContent = "Hand tracking unavailable: use the mouse"; return; }
@@ -494,11 +500,11 @@ async function startHands() {
   clearInterval(guideTimer);
   guideTimer = setInterval(() => {
     if (!hands || !handTarget()) return;
-    const st = hands.state, k = st.hand ? gestureKind(st.pose) : "";
+    const st = hands.state, k = st.hand ? gestureKind(st.pose, st.dir) : "";
     if (k === last) return;
     last = k;
-    for (const li of document.querySelectorAll("#holo-guide li[data-g]")) li.classList.toggle("on", li.dataset.g === k);
-    $("holo-hand").textContent = st.hand ? "Hand seen" : "Show your hand to the camera";
+    for (const li of document.querySelectorAll("#holo-guide li[data-g]")) li.classList.toggle("on", Boolean(k) && li.dataset.g.split(" ").includes(k));
+    $("holo-hand").textContent = !st.hand ? "Show your hand to the camera" : st.dir === "up" || st.dir === "down" ? "Pointing " + st.dir + ": scrolling" : st.dir ? "Pointing " + st.dir + ": " + (st.dir === "left" ? "back" : "forward") : "Hand seen";
   }, 150);
 }
 
@@ -546,14 +552,14 @@ const HELP = {
       <li>Hold a clear sheet (clear plastic folder, CD case lid, photo-frame glass) over the screen: its lower edge just above the top of the screen, rising toward you.</li>
       <li>Angle of the sheet from flat: screen folded flat <b>45°</b>, opened to 150° about <b>30°</b>, opened to 135° (most MacBooks) about <b>22°</b>. If the screen can't fold flat, the sheet needs to be about twice the screen's height.</li>
       <li>Dim the room and look through the sheet with your eyes level with it. The page stands in the air behind the sheet.</li>
-      <li>Control it by hand with this laptop's camera: open hand moves the cursor, a fist clicks, index finger up or down scrolls, a quick flick goes back or forward.</li>`,
+      <li>Control it by hand with this laptop's camera: open hand moves the cursor, a fist clicks, point your index finger up or down to scroll (it keeps scrolling while you point), point it left or right to go back or forward. Pinch the page (thumb and index finger touching), swing your hand and let go to throw it out into the air.</li>`,
   },
   glass: {
     hint: "Lean the clear sheet over the screen. Show your hand to the camera to control it.",
     steps: `<li>Lay this phone or iPad flat, screen up, brightness high, bottom edge towards you. Lock screen rotation first.</li>
       <li>Hold or lean something clear over it at about <b>45°</b>: bottom edge on the far side of the screen, top edge rising towards you. A clear plastic folder, a CD case lid or a photo-frame glass all work.</li>
       <li>Dim the room and look through the sheet with your eyes level with it. The page stands in the air behind the sheet.</li>
-      <li>Control it by hand with this device's front camera: hold your hand where the camera can see it. Open hand moves the cursor, a fist clicks, index finger up or down scrolls, a quick flick goes back or forward. You can also just tap the page.</li>`,
+      <li>Control it by hand with this device's front camera: hold your hand where the camera can see it. Open hand moves the cursor, a fist clicks, point your index finger up or down to scroll (it keeps scrolling while you point), point it left or right to go back or forward. Pinch the page (thumb and index finger touching), swing your hand and let go to throw it out into the air. You can also just tap the page.</li>`,
   },
 };
 const helpKey = () => (view === "glass" && isLaptop() ? "glassLaptop" : view);
@@ -618,6 +624,10 @@ function onRemote(m, reply) {
   else if (m.t === "scroll") glass.scroll(Math.max(-2, Math.min(2, +m.dy || 0)));
   else if (m.t === "back") glass.back();
   else if (m.t === "forward") glass.forward();
+  else if (m.t === "grab") glass.grab(+m.x || 0.5, +m.y || 0.5);
+  else if (m.t === "hold") glass.hold(+m.x || 0.5, +m.y || 0.5);
+  else if (m.t === "throw") glass.throw(Math.max(-9, Math.min(9, +m.vx || 0)), Math.max(-9, Math.min(9, +m.vy || -1)));
+  else if (m.t === "drop") glass.drop();
   else if (m.t === "load" && typeof m.url === "string") loadURL(m.url);
   else if (m.t === "size") glassSize(m.up ? 1.1 : 0.9);
   else if (m.t === "hello") reply({ t: "state", ...glass.state });
@@ -744,4 +754,4 @@ addEventListener("keydown", (e) => { if (e.key === "Escape" && !helpEl.hidden) h
 $("recenter-btn").addEventListener("click", () => { if (view === "holo") return holo.recenter(); if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
 
 // Test hook (no effect for users).
-window.__airpane = { normalizeInput, glassLinks: (n) => (glass ? glass.linkPoints(n) : []), get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, holoGlass: holoGlass && holoGlass.state, hands: hands && hands.state, handMode, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };
+window.__airpane = { normalizeInput, handEvent: onHandEvent, glassLinks: (n) => (glass ? glass.linkPoints(n) : []), get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, holoGlass: holoGlass && holoGlass.state, hands: hands && hands.state, handMode, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };
