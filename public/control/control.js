@@ -6,6 +6,8 @@ import { join, cleanCode, newCode } from "/link.js";
 import { renderBlocks, switchTab, pdfPage } from "/glass.js";
 
 import { vision, createTask, frameGate, clock } from "/mp.js";
+// the browser's own getUserMedia, before PeerJS (webrtc-adapter) can wrap it
+const nativeGUM = navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices) : () => Promise.reject(new Error("no camera API"));
 const HAND_MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 const $ = (id) => document.getElementById(id);
 const video = $("video"), overlay = $("overlay"), ctx = overlay.getContext("2d");
@@ -263,7 +265,7 @@ function sendCur(p) {
 async function startCamera() {
   const msg = $("cam-msg");
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    stream = await nativeGUM({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
     video.srcObject = stream;
     await video.play().catch(() => {});
     msg.textContent = "Loading hand tracking";

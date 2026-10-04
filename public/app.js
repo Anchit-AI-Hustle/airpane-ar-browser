@@ -191,10 +191,15 @@ stage.addEventListener("pointercancel", () => (look.drag = null));
 
 // ---------- camera feed ----------
 let stream = null;
+// The browser's own getUserMedia, kept before anything else can wrap it: PeerJS brings
+// webrtc-adapter, which on Safari replaces getUserMedia with a shim that rewrites the
+// camera constraints and can make Safari refuse them ("OverconstrainedError").
+const nativeGUM = navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices) : null;
 async function startCamera(facing = "environment") {
   try {
     const small = facing === "user";
-    stream = await navigator.mediaDevices.getUserMedia({
+    if (!nativeGUM) throw new Error("no camera API");
+    stream = await nativeGUM({
       video: { facingMode: { ideal: facing }, width: { ideal: small ? 640 : 1280 }, height: { ideal: small ? 480 : 720 } },
       audio: false,
     });
@@ -473,9 +478,17 @@ async function startSelfGlass() {
   pairEl.hidden = true; pairBtn.hidden = true;
   $("holo-guide").hidden = false;
   $("holo-hand").textContent = "Starting the camera";
-  const ok = await startCamera("user");
+  // a camera that is briefly busy (or slow to answer) gets one more try before giving up
+  let ok = await startCamera("user");
+  if (!ok && view === "glass" && selfGlass) { await new Promise((r) => setTimeout(r, 1200)); ok = await startCamera("user"); }
   if (view !== "glass" || !selfGlass) { stopCamera(); return; }
-  if (!ok) { $("holo-hand").textContent = "Camera is off: tap or click the page instead"; return; }
+  if (!ok) {
+    // still no camera: the next tap asks again (Safari may need the tap to show its prompt)
+    $("holo-hand").textContent = "Camera is off: tap the screen to try again, or tap links directly";
+    const retry = async () => { removeEventListener("pointerdown", retry, true); if (view === "glass" && selfGlass && !cam.srcObject && (await startCamera("user"))) startHands(); };
+    addEventListener("pointerdown", retry, true);
+    return;
+  }
   startHands();
 }
 function stopSelfGlass() {
