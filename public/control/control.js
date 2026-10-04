@@ -5,7 +5,7 @@ import { POSES } from "/poses.js";
 import { join, cleanCode, newCode } from "/link.js";
 import { renderBlocks, switchTab, pdfPage } from "/glass.js";
 
-const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1";
+import { vision, createTask, frameGate, clock } from "/mp.js";
 const HAND_MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 const $ = (id) => document.getElementById(id);
 const video = $("video"), overlay = $("overlay"), ctx = overlay.getContext("2d");
@@ -272,11 +272,8 @@ async function startCamera() {
     return;
   }
   try {
-    const { FilesetResolver, HandLandmarker } = await import(MP + "/vision_bundle.mjs");
-    const files = await FilesetResolver.forVisionTasks(MP + "/wasm");
-    const opts = (delegate) => ({ baseOptions: { modelAssetPath: HAND_MODEL, delegate }, runningMode: "VIDEO", numHands: 1, minHandDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-    try { landmarker = await HandLandmarker.createFromOptions(files, opts("GPU")); }
-    catch { landmarker = await HandLandmarker.createFromOptions(files, opts("CPU")); }
+    const { mod, files } = await vision();
+    landmarker = (await createTask(mod.HandLandmarker, files, HAND_MODEL, { runningMode: "VIDEO", numHands: 1, minHandDetectionConfidence: 0.5, minTrackingConfidence: 0.5 })).task;
     msg.hidden = true;
     requestAnimationFrame(tick);
   } catch {
@@ -284,14 +281,14 @@ async function startCamera() {
   }
 }
 
-let lastVideoTime = -1, lastLm = null, lastKind = "";
+let lastLm = null, lastKind = "";
+const gate = frameGate(), ts = clock();
 window.__ctl.lastLandmarks = () => lastLm && lastLm.map((p) => [+p.x.toFixed(4), +p.y.toFixed(4)]);
 function tick(now) {
   requestAnimationFrame(tick);
-  if (!landmarker || video.readyState < 2 || video.currentTime === lastVideoTime) return;
-  lastVideoTime = video.currentTime;
+  if (!landmarker || !gate(video, now)) return;
   let lm = null;
-  try { const r = landmarker.detectForVideo(video, now); lm = r.landmarks && r.landmarks[0]; } catch { return; }
+  try { const r = landmarker.detectForVideo(video, ts(now)); lm = r.landmarks && r.landmarks[0]; } catch { return; }
   draw(lm);
   S.hand = Boolean(lm); lastLm = lm;
   if (!handsOn) return;

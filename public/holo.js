@@ -12,7 +12,7 @@
 // eye, which is exactly an off-axis (window) projection. Every element gets one
 // flat transform under that parent, so clicks still land on the right link.
 
-const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1";
+import { vision, createTask, frameGate, clock } from "./mp.js";
 const MODEL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
 const PX_PER_CM = 42;     // CSS pixels per cm on a typical laptop screen
 const FACE_CM = 15;       // average face width
@@ -40,6 +40,7 @@ export function headFromFace(box, vw, neutral) {
 }
 
 export function createHolo({ stage, panel, video, onStatus }) {
+  const gate = frameGate(), ts = clock();
   // CSS perspective only reaches direct children of the stage, so every room
   // piece is added to the stage itself (no wrapper).
   const room = { children: [], appendChild(el) { this.children.push(el); } };
@@ -76,11 +77,8 @@ export function createHolo({ stage, panel, video, onStatus }) {
     if (s.detector || s.loading) return;
     s.loading = true;
     try {
-      const { FilesetResolver, FaceDetector } = await import(MP + "/vision_bundle.mjs");
-      const files = await FilesetResolver.forVisionTasks(MP + "/wasm");
-      const opts = (delegate) => ({ baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: "VIDEO", minDetectionConfidence: 0.5 });
-      try { s.detector = await FaceDetector.createFromOptions(files, opts("GPU")); }
-      catch { s.detector = await FaceDetector.createFromOptions(files, opts("CPU")); }
+      const { mod, files } = await vision();
+      s.detector = (await createTask(mod.FaceDetector, files, MODEL, { runningMode: "VIDEO", minDetectionConfidence: 0.5 })).task;
     } catch (e) {
       onStatus && onStatus("nohead");
     }
@@ -88,11 +86,9 @@ export function createHolo({ stage, panel, video, onStatus }) {
   }
 
   function detect(now) {
-    if (!s.detector || !video.srcObject || video.readyState < 2 || !video.videoWidth) return;
-    if (video.currentTime === s.lastVideoTime) return;
-    s.lastVideoTime = video.currentTime;
+    if (!s.detector || !gate(video, now)) return;
     let res;
-    try { res = s.detector.detectForVideo(video, now); } catch { return; }
+    try { res = s.detector.detectForVideo(video, ts(now)); } catch { return; }
     const det = res && res.detections && res.detections[0];
     if (!det) return;
     const box = det.boundingBox;

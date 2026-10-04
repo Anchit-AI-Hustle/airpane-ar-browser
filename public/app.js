@@ -501,6 +501,7 @@ async function startHands() {
   guideTimer = setInterval(() => {
     if (!hands || !handTarget()) return;
     const st = hands.state, k = st.hand ? gestureKind(st.pose, st.dir) : "";
+    if (st.error) { if (last !== "error") { last = "error"; $("holo-hand").textContent = st.error + ". Tap the page instead."; } return; }
     if (k === last) return;
     last = k;
     for (const li of document.querySelectorAll("#holo-guide li[data-g]")) li.classList.toggle("on", Boolean(k) && li.dataset.g.split(" ").includes(k));
