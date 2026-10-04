@@ -28,7 +28,7 @@ const b64 = (f) => "data:image/jpeg;base64," + fs.readFileSync(path.join(fx, f))
   const b = await pw.webkit.launch();
   const ctx = await b.newContext({ ...pw.devices["iPhone 15"] });
   // the fake camera: a canvas stream of hand photos
-  await ctx.addInitScript(({ point, palm }) => {
+  const fakeCam = ({ point, palm }) => {
     const load = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.src = src; });
     if (!navigator.mediaDevices) Object.defineProperty(navigator, "mediaDevices", { value: {}, configurable: true });
     navigator.mediaDevices.getUserMedia = async () => {
@@ -46,7 +46,9 @@ const b64 = (f) => "data:image/jpeg;base64," + fs.readFileSync(path.join(fx, f))
       draw(); setInterval(draw, 66);
       return c.captureStream(15);
     };
-  }, { point: b64("pointing_up.jpg"), palm: b64("open_palm.jpg") });
+  };
+  const imgs = { point: b64("pointing_up.jpg"), palm: b64("open_palm.jpg") };
+  await ctx.addInitScript(fakeCam, imgs);
   const p = await ctx.newPage();
   const errs = [];
   p.on("pageerror", (e) => errs.push(e.message));
@@ -54,10 +56,11 @@ const b64 = (f) => "data:image/jpeg;base64," + fs.readFileSync(path.join(fx, f))
   await t("iPhone Safari: Floating glass opens and the camera stream plays", async () => {
     await p.goto(BASE + "/", { waitUntil: "load" });
     await p.waitForFunction(() => window.__airpane, null, { timeout: 30000 });
+    await p.evaluate(fakeCam, imgs); // again, in case the init script lost a race with the page
     await p.tap("#landing .chip >> text=Wikipedia");
     await p.waitForFunction(() => { const g = window.__airpane.state.glass; return g && !g.loading && g.mode === "page"; }, null, { timeout: 60000 });
     try { await p.waitForFunction(() => document.getElementById("cam").readyState >= 2, null, { timeout: 20000 }); }
-    catch { throw new Error("camera video not playing: " + JSON.stringify(await p.evaluate(() => { const v = document.getElementById("cam"); return { rs: v.readyState, src: !!v.srcObject, md: !!navigator.mediaDevices, status: document.getElementById("holo-hand").textContent }; }))); }
+    catch { throw new Error("camera video not playing: " + JSON.stringify(await p.evaluate(() => { const v = document.getElementById("cam"); return { rs: v.readyState, src: !!v.srcObject, md: !!navigator.mediaDevices, status: document.getElementById("holo-hand").textContent }; })) + " direct call: " + (await p.evaluate(async () => { try { const s = await navigator.mediaDevices.getUserMedia({ video: true }); return "ok " + s.getVideoTracks().length + " " + String(navigator.mediaDevices.getUserMedia).slice(0, 30); } catch (e) { return "error " + e + " " + String(navigator.mediaDevices.getUserMedia).slice(0, 30); } }))); }
   });
 
   await t("iPhone Safari: hand tracking loads and reads frames", async () => {
@@ -76,6 +79,24 @@ const b64 = (f) => "data:image/jpeg;base64," + fs.readFileSync(path.join(fx, f))
   await t("iPhone Safari: an open hand shows the cursor", async () => {
     await p.waitForFunction(() => window.__camShown === "open", null, { timeout: 30000 });
     await p.waitForFunction(() => !document.querySelector("#glass .g-cursor").hidden, null, { timeout: 30000 });
+  });
+
+  await t("iPhone Safari: the camera is shown as a small on-screen mirror (Safari needs it visible) and the guide shows a live readout", async () => {
+    const box = await p.locator("#cam").boundingBox();
+    assert.ok(box && box.width >= 90 && box.height >= 60, "camera thumbnail too small: " + JSON.stringify(box));
+    assert.ok(box.x + box.width <= 393 && box.y >= 0, "thumbnail off screen");
+    if (await p.isVisible("#pyr-help-ok")) await p.tap("#pyr-help-ok");
+    await p.evaluate(() => document.getElementById("holo-guide").classList.remove("mini"));
+    await p.waitForFunction(() => /tracking .* fps/.test(document.getElementById("holo-diag").textContent), null, { timeout: 10000 });
+    await p.screenshot({ path: __dirname + "/shots/iphone-glass-tracking.png" });
+  });
+
+  await t("Home Screen app: manifest, icon and standalone tags are served", async () => {
+    const m = await (await fetch(BASE + "/manifest.webmanifest")).json();
+    assert.equal(m.display, "standalone"); assert.equal(m.start_url, "/");
+    for (const i of m.icons) assert.equal((await fetch(BASE + i.src)).status, 200, i.src);
+    assert.equal((await fetch(BASE + "/icon-180.png")).status, 200);
+    assert.equal(await p.evaluate(() => document.querySelector('meta[name="apple-mobile-web-app-capable"]').content), "yes");
   });
 
   await t("iPhone Safari: no page errors", async () => { assert.deepEqual(errs, []); });

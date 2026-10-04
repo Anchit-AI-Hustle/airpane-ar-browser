@@ -199,11 +199,22 @@ async function startCamera(facing = "environment") {
       audio: false,
     });
     cam.srcObject = stream;
-    await cam.play().catch(() => {});
+    await playCam();
     ar.classList.remove("no-cam");
     return true;
   } catch {
     ar.classList.add("no-cam");
+    return false;
+  }
+}
+// Safari (Low Power Mode especially) can refuse to start the camera video without a tap:
+// then the next tap anywhere starts it.
+async function playCam() {
+  try { await cam.play(); return true; }
+  catch {
+    toast("Tap the screen once to start the camera.", 6000);
+    const go = () => { cam.play().then(() => removeEventListener("pointerdown", go, true)).catch(() => {}); };
+    addEventListener("pointerdown", go, true);
     return false;
   }
 }
@@ -498,9 +509,18 @@ async function startHands() {
   // keep the guide live: light up the line for the shape the camera sees now
   let last = null;
   clearInterval(guideTimer);
+  let diagAt = 0, diagFrames = 0;
   guideTimer = setInterval(() => {
     if (!hands || !handTarget()) return;
     const st = hands.state, k = st.hand ? gestureKind(st.pose, st.dir) : "";
+    // a small live readout, so a phone that can't track says why
+    const now = performance.now();
+    if (now - diagAt >= 1000) {
+      const fps = diagAt ? Math.round(((st.frames - diagFrames) * 1000) / (now - diagAt)) : 0;
+      diagAt = now; diagFrames = st.frames;
+      $("holo-diag").textContent = !cam.srcObject ? "Camera off" : cam.paused || !cam.videoWidth ? "Camera starting (tap the screen if it stays like this)"
+        : `Camera ${cam.videoWidth}x${cam.videoHeight} · ${st.ready ? "tracking " + st.delegate + " · " + fps + " fps" : "loading hand tracking"} · ${st.hand ? "hand seen" : "no hand"}`;
+    }
     if (st.error) { if (last !== "error") { last = "error"; $("holo-hand").textContent = st.error + ". Tap the page instead."; } return; }
     if (k === last) return;
     last = k;

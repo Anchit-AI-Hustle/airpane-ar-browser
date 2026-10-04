@@ -36,6 +36,7 @@
 #ar.glassv.sheet .holo-guide { transform: scaleY(-1); }
 /* tap the guide to fold it down to its title (and again to open it) */
 .holo-guide { cursor: pointer; }
-.holo-guide.mini ul, .holo-guide.mini .hg-status { display: none; }
+.holo-guide.mini ul, .holo-guide.mini .hg-status, .holo-guide.mini .hg-diag { display: none; }
+.holo-guide .hg-diag { margin: 2px 0 0; font-size: 10.5px; color: var(--muted); opacity: 0.8; }
 .holo-guide.mini .hg-title { margin: 0; }
 .holo-guide.mini .hg-title::after { content: " (tap to show)"; font-weight: 500; color: var(--muted); font-size: 11px; }
