@@ -65,6 +65,10 @@ let dist = 1000, running = false, placed = false, ready = false;
 // "holo": laptop/desktop, the camera tracks your head and the page floats in front
 // of the screen. "room": phone, the back camera shows the room and the page is
 // pinned in it.
+// Pairing with another device is only for links that ask for it (?pair=CODE from the
+// laptop's QR code, or ?peer=host for tests). Otherwise PeerJS is never loaded: it is not
+// needed on a single device, and its Safari shim interfered with the camera.
+const PAIRING = (() => { const q = new URLSearchParams(location.search); return q.has("pair") || q.has("peer"); })();
 let view = "room", holo = null, pyr = null, glass = null, link = null, linkStarting = false;
 // Hologram on a laptop with no phone: the real page floats in the 3D room and the same
 // webcam reads both the head (depth) and the hand (cursor, click, scroll, back, forward).
@@ -393,6 +397,7 @@ function applyView(camOk) {
   ar.classList.toggle("glassv", view === "glass");
   ar.classList.remove("ui-hidden");
   viewBtn.textContent = LABEL[view];
+  viewBtn.dataset.short = { glass: "Glass", pyramid: "Pyramid", holo: "Hologram", room: "Room" }[view] || LABEL[view];
   viewBtn.setAttribute("aria-label", "3D view: " + viewBtn.textContent + ". Switch view");
   trackEl.hidden = true;
   stage.style.perspectiveOrigin = "";
@@ -405,7 +410,7 @@ function applyView(camOk) {
     keepAwake(true);
     if (view === "pyramid") { glass.stop(); pairEl.hidden = true; pyr.start(); if (current) pyr.show(current); }
     else {
-      pyr.stop(); glass.start(); startLink();
+      pyr.stop(); glass.start(); if (PAIRING) startLink();
       startSelfGlass(); // hand control from this device's own camera
       let flip = "1";
       try { flip = localStorage.getItem("airpane-flip") ?? "1"; } catch {}
@@ -567,6 +572,7 @@ function setFlip(on) {
   glass.setFlip(on);
   ar.classList.toggle("sheet", on); // the gesture guide is drawn to read right in the sheet too
   flipBtn.textContent = "For clear sheet: " + (on ? "on" : "off");
+  flipBtn.dataset.short = "Sheet: " + (on ? "on" : "off");
   flipBtn.setAttribute("aria-pressed", String(on));
   try { localStorage.setItem("airpane-flip", on ? "1" : "0"); } catch {}
   if (link) link.broadcast({ t: "state", ...glass.state });
@@ -779,6 +785,7 @@ darkBtn.addEventListener("click", () => {
   const on = !pyr.state.dark;
   pyr.setDark(on);
   darkBtn.textContent = on ? "Glow: on" : "Glow: off";
+  darkBtn.dataset.short = on ? "Glow" : "No glow";
   darkBtn.setAttribute("aria-pressed", String(on));
 });
 ar.addEventListener("pointerdown", pokeUI);
