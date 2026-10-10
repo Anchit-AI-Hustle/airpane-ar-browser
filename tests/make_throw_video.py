@@ -27,9 +27,9 @@ def add(img, secs, x0, x1=None, y0=0.5, y1=None):
 add(None, 2, 0.5)
 add(down, 5, 0.5)                           # point down: scroll down (keeps going)
 add(None, 1.5, 0.5)
-add(pinch, 5, 0.5, y0=0.72)                 # pinch held still: grab
-add(pinch, 0.8, 0.5, y0=0.72, y1=0.3)       # a quick swing upwards
-add(pinch, 0.35, 0.5, y0=0.3)               # (a moment at the top: this test machine only sees a few frames a second)
+add(pinch, 5, 0.5, y0=0.74)                 # pinch held still: grab
+add(pinch, 0.6, 0.5, y0=0.74, y1=0.28)      # a quick swing upwards
+add(pinch, 0.5, 0.5, y0=0.28)               # (a moment at the top: this test machine only sees a few frames a second)
 add(None, 4, 0.5)                           # let go / hand leaves: throw
 with tempfile.TemporaryDirectory() as d:
     for i, f in enumerate(seg): cv2.imwrite(f"{d}/{i:04d}.png", f)
