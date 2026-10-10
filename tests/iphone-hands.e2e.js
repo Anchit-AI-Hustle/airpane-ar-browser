@@ -91,6 +91,18 @@ const b64 = (f) => "data:image/jpeg;base64," + fs.readFileSync(path.join(fx, f))
     await p.screenshot({ path: __dirname + "/shots/iphone-glass-tracking.png" });
   });
 
+  await t("iPhone: the top bar fits on screen, the guide sits above the bottom bar, and no pairing code is loaded", async () => {
+    await p.evaluate(() => document.getElementById("ar").classList.remove("ui-hidden"));
+    const r = await p.evaluate(() => {
+      const vw = innerWidth, over = [...document.querySelectorAll(".hud-top > *")].filter((e) => e.offsetParent).filter((e) => { const q = e.getBoundingClientRect(); return q.right > vw || q.left < 0; }).map((e) => e.id);
+      const a = document.getElementById("holo-guide").getBoundingClientRect(), d = document.querySelector(".dock").getBoundingClientRect();
+      return { over, overlap: !(a.bottom <= d.top || a.top >= d.bottom), peer: performance.getEntriesByType("resource").some((e) => /peerjs/i.test(e.name)) };
+    });
+    assert.deepEqual(r.over, [], "top bar items off screen");
+    assert.equal(r.overlap, false, "gesture guide covers the bottom bar");
+    assert.equal(r.peer, false, "PeerJS was loaded on a single device");
+  });
+
   await t("Home Screen app: manifest, icon and standalone tags are served", async () => {
     const m = await (await fetch(BASE + "/manifest.webmanifest")).json();
     assert.equal(m.display, "standalone"); assert.equal(m.start_url, "/");
