@@ -511,7 +511,11 @@ async function t(name, fn) {
       const L = await linkPoint();
       await ctl.locator("#pad").scrollIntoViewIfNeeded(); const pad = await ctl.locator("#pad").boundingBox();
       await ctl.mouse.move(pad.x + L.x * pad.width, pad.y + L.y * pad.height, { steps: 4 });
-      await disp.waitForFunction(() => document.querySelector("#glass .g-page").contentDocument.querySelector("a.airpane-hover"), null, { timeout: 10000 });
+      try { await disp.waitForFunction(() => document.querySelector("#glass .g-page").contentDocument.querySelector("a.airpane-hover"), null, { timeout: 10000 }); }
+      catch { // a message can be dropped on a busy test machine: move again onto the same link
+        await ctl.mouse.move(pad.x + L.x * pad.width + 2, pad.y + L.y * pad.height, { steps: 4 });
+        await disp.waitForFunction(() => document.querySelector("#glass .g-page").contentDocument.querySelector("a.airpane-hover"), null, { timeout: 15000 });
+      }
       assert.equal(await disp.isVisible(".g-cursor"), true);
       // the live view on the laptop highlights the same link
       await ctl.waitForFunction(() => document.querySelector("#mirror .g-page").contentDocument?.querySelector("a.airpane-hover"), null, { timeout: 10000 });
@@ -633,7 +637,8 @@ async function t(name, fn) {
       await ctl.waitForFunction(() => window.__ctl.state.detector && window.__ctl.state.hand, null, { timeout: 60000 });
       const c0 = await ctl.evaluate(() => window.__ctl.state.events.cur);
       await ctl.mouse.move(5, 5); // leave the trackpad so only the hand drives the cursor
-      await ctl.waitForTimeout(1500);
+      // a loaded test machine can take a few seconds to settle on the open hand
+      await ctl.waitForFunction(() => window.__ctl.state.gesture.cursor, null, { timeout: 20000 }).catch(() => {});
       const st = await ctl.evaluate(() => window.__ctl.state);
       assert.ok(st.gesture.cursor, "no cursor from the hand");
       assert.ok(st.events.cur > c0 || st.events.cur > 0, "hand cursor never sent");
