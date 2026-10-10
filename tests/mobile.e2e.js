@@ -67,6 +67,8 @@ async function t(name, fn) {
 
     await t(`${label}: tapping a link on the screen opens it`, async () => {
       const before = await p.evaluate(() => window.__airpane.state.glass.url);
+      // fold the gesture guide out of the way, as a person would by tapping it
+      await p.evaluate(() => document.getElementById("holo-guide").classList.add("mini"));
       const pt = await p.evaluate(() => {
         const here = window.__airpane.state.glass.url.split("#")[0], d = document.querySelector(".g-doc").getBoundingClientRect();
         // a link the person can actually see (not under the pairing card or the controls)
