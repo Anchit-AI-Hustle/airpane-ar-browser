@@ -1,4 +1,4 @@
-mediapipe>=1.0.1
+mediapipe>=1.1.0
 opencv-python>=5.0.0.93
 pynput>=1.8.2
 numpy
