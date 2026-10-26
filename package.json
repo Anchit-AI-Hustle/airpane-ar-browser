@@ -4,7 +4,7 @@
   "description": "Airpane - open any website in the air through the phone camera",
   "scripts": {
     "dev": "node scripts/dev-server.js",
-    "test": "node tests/math.test.mjs && node tests/api.test.js && node tests/e2e.test.js"
+    "test": "node tests/math.test.mjs && node tests/api.test.js && node tests/cast.test.mjs && node tests/e2e.test.js && node tests/cast.e2e.js"
   },
   "keywords": [],
   "author": "",

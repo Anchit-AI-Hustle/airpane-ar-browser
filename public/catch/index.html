@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Airpane screen</title>
+  <meta name="description" content="Open this on a TV, laptop or tablet, then throw a page at it from your phone." />
+  <meta name="theme-color" content="#07090f" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='7' width='22' height='16' rx='3' fill='none' stroke='%237cf5d3' stroke-width='2.5' transform='skewY(-8) translate(0 4)'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/glass.css" />
+  <link rel="stylesheet" href="/catch/catch.css" />
+  <script src="/vendor/qrcode.js" defer></script>
+</head>
+<body>
+  <main id="wait" class="wait">
+    <header class="top"><a class="brand" href="/"><span class="mark" aria-hidden="true"></span>Airpane<span class="beta">screen</span></a></header>
+    <section class="wait-card">
+      <div class="wait-copy">
+        <h1>Ready to catch.</h1>
+        <p class="lede" id="wait-lede">Throw a page from your phone and it lands here.</p>
+        <ol class="wait-steps" id="wait-steps">
+          <li>Scan this QR code with your phone's camera, or open <b id="site">airpane.anchit-tandon.com</b>, tap the <b>Cast</b> button and type the code.</li>
+          <li>Open any site on the phone.</li>
+          <li>Pinch the page and swing it towards this screen, or press and hold the page and flick it up.</li>
+        </ol>
+        <div class="wait-code" aria-label="Screen code"><span class="label">Screen code</span><span id="code" class="code">....</span></div>
+        <p id="wait-status" class="wait-status" role="status" aria-live="polite"><span class="spin" aria-hidden="true"></span>Getting a code</p>
+        <button id="full" class="chip" type="button">Full screen</button>
+      </div>
+      <div id="qr" class="qr" role="img" aria-label="QR code that connects your phone to this screen"></div>
+    </section>
+  </main>
+
+  <div id="show" class="show" hidden>
+    <div id="glass" class="glass" hidden></div>
+    <iframe id="video" class="video" title="Video" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
+    <div id="badge" class="badge" role="status" aria-live="polite"></div>
+    <div id="chip" class="code-chip" aria-label="Screen code"><div id="chip-qr" class="chip-qr" aria-hidden="true"></div><span><small>Screen code</small><b id="chip-code">....</b></span></div>
+  </div>
+
+  <div id="allow" class="allow" role="alertdialog" aria-modal="true" aria-labelledby="allow-title" hidden>
+    <div class="allow-card">
+      <h2 id="allow-title"><span id="allow-who">A phone</span> wants to throw pages to this screen</h2>
+      <p>It typed this screen's code. Allow it only if it is yours or someone you know.</p>
+      <div class="allow-row"><button id="allow-yes" class="btn-primary" type="button">Allow</button><button id="allow-no" class="chip" type="button">Don't allow</button></div>
+    </div>
+  </div>
+
+  <script type="module" src="/catch/catch.js"></script>
+</body>
+</html>

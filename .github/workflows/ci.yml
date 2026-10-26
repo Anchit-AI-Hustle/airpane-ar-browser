@@ -11,6 +11,7 @@ jobs:
       - run: node tests/math.test.mjs
       - run: node tests/api.test.js
       - run: node tests/gestures.test.mjs
+      - run: node tests/cast.test.mjs
       - uses: actions/setup-python@v7
         with: { python-version: "3.11" }
       - run: python desktop/tests/test_engine.py

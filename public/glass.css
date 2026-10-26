@@ -70,3 +70,21 @@
 .g-burst { position: absolute; z-index: 4; width: 40vmin; height: 40vmin; margin: -20vmin 0 0 -20vmin; border-radius: 50%; border: 3px solid #7cf5d3; box-shadow: 0 0 40px rgba(124, 245, 211, 0.9), inset 0 0 40px rgba(124, 245, 211, 0.5); pointer-events: none; animation: gburst 0.8s ease-out forwards; }
 @keyframes gburst { 0% { transform: scale(0.2); opacity: 1; } 100% { transform: scale(2.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .glass.thrown .g-doc, .glass.dropping .g-doc { animation-duration: 0.01s; } .g-burst { display: none; } }
+
+/* ---------- Thrown to another screen ---------- */
+/* sent: the card flies off this screen along the swing, then the page fades back in */
+.glass.sent .g-doc { animation: gsend 1s cubic-bezier(0.3, 0.6, 0.35, 1) both; }
+@keyframes gsend {
+  0% { transform: perspective(900px) translate(var(--cx, 0%), var(--cy, 0%)) scale(0.38); border-radius: 22px; box-shadow: 0 0 0 4px #7cf5d3, 0 0 60px 8px rgba(124, 245, 211, 0.75); opacity: 1; }
+  45% { transform: perspective(900px) translate(var(--tx, 0%), var(--ty, -160%)) translateZ(200px) rotateX(20deg) scale(0.3); border-radius: 22px; box-shadow: 0 0 0 4px #fff, 0 0 80px 20px rgba(124, 245, 211, 0.9); opacity: 0.9; }
+  46% { transform: none; opacity: 0; border-radius: 0; box-shadow: none; }
+  100% { transform: none; opacity: 1; }
+}
+/* landing: a page thrown from another device flies in from that side and opens up */
+.glass.landing .g-doc { animation: gland 0.9s cubic-bezier(0.2, 0.75, 0.25, 1) both; }
+@keyframes gland {
+  0% { transform: perspective(900px) translate(var(--fx, 0%), var(--fy, 120%)) translateZ(260px) rotateX(-16deg) scale(0.34); border-radius: 22px; box-shadow: 0 0 0 5px #fff, 0 0 110px 30px rgba(124, 245, 211, 0.9); opacity: 0.4; }
+  55% { transform: perspective(900px) translate(0%, 0%) translateZ(0) scale(0.5); border-radius: 22px; box-shadow: 0 0 0 4px #7cf5d3, 0 0 70px 10px rgba(124, 245, 211, 0.75); opacity: 1; }
+  100% { transform: none; border-radius: 0; box-shadow: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .glass.sent .g-doc, .glass.landing .g-doc { animation-duration: 0.01s; } }
