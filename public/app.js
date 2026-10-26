@@ -8,6 +8,7 @@ import { createGlass } from "./glass.js";
 import { createHandTracker } from "./handtrack.js";
 import { gestureKind } from "./gestures.js";
 import { host, cleanCode } from "./link.js";
+import { createCaster, deviceName } from "./cast.js";
 
 const $ = (id) => document.getElementById(id);
 const landing = $("landing"), ar = $("ar"), cam = $("cam"), stage = $("stage");
@@ -451,7 +452,8 @@ function mountHoloGlass(camOk) {
     const pt = (e) => ({ x: Math.min(1, Math.max(0, e.offsetX / e.target.clientWidth)), y: Math.min(1, Math.max(0, e.offsetY / e.target.clientHeight)) });
     holoHost.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" && e.target.classList.contains("g-touch")) { const p = pt(e); holoGlass.cursor(p.x, p.y); } });
     holoHost.addEventListener("pointerleave", () => holoGlass && holoGlass.hideCursor());
-    holoHost.addEventListener("click", (e) => { if (e.target.classList.contains("g-touch")) { const p = pt(e); holoGlass.click(p.x, p.y); } });
+    const fling = wireFling(holoHost, () => holoGlass);
+    holoHost.addEventListener("click", (e) => { if (e.target.classList.contains("g-touch") && !fling.recent()) { const p = pt(e); holoGlass.click(p.x, p.y); } });
     holoHost.addEventListener("wheel", (e) => { e.preventDefault(); holoGlass.scroll(e.deltaY / 900); }, { passive: false });
   }
   frameHost.hidden = true;
@@ -507,6 +509,14 @@ function onHandEvent(ev) {
   const g = handTarget();
   if (!g) return;
   if (!handHinted) { handHinted = true; hint("Hand seen. Open hand moves, a fist clicks, point up or down to scroll, point left or right for back or forward, pinch and swing to throw.", 5000); }
+  // the page is on the other screen: the hand drives it there
+  if (remote && cast && cast.connected && /^(cur|click|scroll|back|forward|lost)$/.test(ev.t)) {
+    cast.send(ev.t === "cur" || ev.t === "click" ? { t: ev.t, x: ev.x, y: ev.y } : ev.t === "scroll" ? { t: "scroll", dy: ev.dy } : { t: ev.t });
+    if (ev.t === "click") hint("Click on the screen", 900);
+    else if (ev.t === "back" || ev.t === "forward") hint((ev.t === "back" ? "Back" : "Forward") + " on the screen", 900);
+    if (ev.t === "cur") g.hideCursor();
+    return;
+  }
   if (ev.t === "cur") g.cursor(ev.x, ev.y);
   else if (ev.t === "click") { g.click(ev.x, ev.y); hint("Click", 900); }
   else if (ev.t === "scroll") g.scroll(ev.dy);
@@ -516,7 +526,7 @@ function onHandEvent(ev) {
   // pinch and throw
   else if (ev.t === "grab") { g.grab(ev.x, ev.y); hint("Got it. Swing your hand and let go to throw it.", 2500); }
   else if (ev.t === "hold") g.hold(ev.x, ev.y);
-  else if (ev.t === "throw") { g.throw(ev.vx, ev.vy); hint("Thrown into the air", 1200); }
+  else if (ev.t === "throw") throwPage(g, ev.vx, ev.vy);
   else if (ev.t === "drop") g.drop();
 }
 async function startHands() {
@@ -666,23 +676,25 @@ function onRemote(m, reply) {
   else if (m.t === "forward") glass.forward();
   else if (m.t === "grab") glass.grab(+m.x || 0.5, +m.y || 0.5);
   else if (m.t === "hold") glass.hold(+m.x || 0.5, +m.y || 0.5);
-  else if (m.t === "throw") glass.throw(Math.max(-9, Math.min(9, +m.vx || 0)), Math.max(-9, Math.min(9, +m.vy || -1)));
+  else if (m.t === "throw") throwPage(glass, Math.max(-9, Math.min(9, +m.vx || 0)), Math.max(-9, Math.min(9, +m.vy || -1)));
   else if (m.t === "drop") glass.drop();
   else if (m.t === "load" && typeof m.url === "string") loadURL(m.url);
   else if (m.t === "size") glassSize(m.up ? 1.1 : 0.9);
   else if (m.t === "hello") reply({ t: "state", ...glass.state });
 }
-// Direct touch on the display still works: tap a link, drag to scroll.
+// Direct touch on the display still works: tap a link, drag to scroll, press and hold to
+// pick the page up and flick it to throw it.
 function wireGlassTouch() {
   const el = $("glass");
+  const fling = wireFling(el, () => (view === "glass" ? glass : null));
   let down = null;
   el.addEventListener("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY, last: e.clientY, moved: false }; });
   el.addEventListener("pointermove", (e) => {
-    if (!down) return;
+    if (!down || fling.held) return;
     if (Math.abs(e.clientY - down.y) > 8) down.moved = true;
     if (down.moved) { glass.dragBy(e.clientY - down.last); down.last = e.clientY; }
   });
-  el.addEventListener("pointerup", (e) => { if (down && !down.moved) glass.tapAt(e.clientX, e.clientY); down = null; });
+  el.addEventListener("pointerup", (e) => { if (down && !down.moved && !fling.recent()) glass.tapAt(e.clientX, e.clientY); down = null; });
   el.addEventListener("pointercancel", () => { down = null; });
 }
 // Controls reflect into the pyramid too, so they fade away when not in use.
@@ -692,7 +704,7 @@ function pokeUI() {
   clearTimeout(uiTimer);
   if (!FLOAT(view)) return;
   uiTimer = setTimeout(() => {
-    if (FLOAT(view) && helpEl.hidden && !ar.contains(document.activeElement)) ar.classList.add("ui-hidden");
+    if (FLOAT(view) && helpEl.hidden && castSheet.hidden && !ar.contains(document.activeElement)) ar.classList.add("ui-hidden");
   }, 5000);
 }
 let wake = null;
@@ -712,6 +724,7 @@ function exitAR() {
   if (glass) { glass.stop(); glass.hideCursor(); }
   if (link) { link.close(); link = null; }
   pairEl.hidden = true;
+  castSheet.hidden = true; setRemote(false);
   keepAwake(false);
   clearTimeout(uiTimer);
   helpEl.hidden = true;
@@ -731,6 +744,181 @@ addEventListener("popstate", (e) => {
   if (!s || !s.ar) return exitAR();
   if (s.url && s.url !== current) loadURL(s.url, { push: false });
 });
+
+// ---------- throw the page onto another screen ----------
+// A TV, laptop or tablet opens /catch and shows a code. Once this device is connected to it,
+// throwing the page (pinch, swing, let go; or press, hold and flick) sends it there: it flies
+// off this screen and lands on that one. The hand, or the bar above the dock, then scrolls and
+// clicks on the screen; "Bring back" pulls the page back here.
+const ME = deviceName(navigator.userAgent);
+const castSheet = $("cast-sheet"), castBtn = $("cast-btn"), castBar = $("cast-bar"), castCode = $("cast-code"), castErr = $("cast-err");
+let cast = null, remote = false, castTitle = "", castTipShown = false;
+$("cast-site").textContent = location.host + "/catch";
+function caster() {
+  cast = cast || createCaster({ onChange: renderCast, onMessage: onScreen });
+  return cast;
+}
+function renderCast(st = cast ? cast.state : {}) {
+  $("cast-off").hidden = Boolean(st.connected);
+  $("cast-on").hidden = !st.connected;
+  $("cast-name").textContent = st.name || "the screen";
+  $("cast-present").hidden = !st.presentAvailable || Boolean(st.connected);
+  $("cast-go").disabled = Boolean(st.connecting);
+  $("cast-go").textContent = st.connecting ? "Connecting" : "Connect";
+  castBtn.classList.toggle("on", Boolean(st.connected));
+  castBtn.setAttribute("aria-label", st.connected ? "Connected to " + (st.name || "a screen") + ". Throw to another screen" : "Throw to another screen");
+  $("pinch-what").textContent = st.connected ? "throw the page to the screen" : "throw the page into the air";
+  if (!st.connected) setRemote(false);
+}
+function onScreen(m) {
+  if (m.t === "state") { castTitle = m.title || (m.url ? new URL(m.url).host : ""); $("cast-bar-title").textContent = "On the screen: " + (m.loading ? "opening..." : castTitle || "a page"); }
+  else if (m.t === "page") bringBack(m);
+}
+function setRemote(on) {
+  remote = Boolean(on);
+  castBar.hidden = !remote;
+  ar.classList.toggle("casting", remote);
+  // a video plays on the screen by itself: no scrolling to do there
+  if (remote) pokeUI();
+}
+// The page this device's gestures and touches act on (the Floating glass or the Hologram's page).
+const pageTarget = () => (view === "glass" ? glass : view === "holo" && holoGlass ? holoGlass : null);
+function pageNow() {
+  const g = pageTarget();
+  if (g) { const st = g.state; return st.url && !st.error ? { url: st.url, title: st.title, pos: st.pos } : null; }
+  return current ? { url: current, title: statusEl.textContent || "", pos: 0 } : null;
+}
+// Send the page to the connected screen. g: the page to animate flying off (if any).
+function castPage(g, vx = 0, vy = -2) {
+  const p = pageNow();
+  if (!p) { if (g) g.drop(); toast("Open a page first, then throw it."); return false; }
+  if (g) g.throw(vx, vy, { away: true });
+  cast.send({ t: "cast", url: p.url, title: p.title, pos: p.pos, from: ME, vx, vy });
+  castTitle = p.title;
+  $("cast-bar-title").textContent = "On the screen: " + (p.title || "a page");
+  setRemote(true);
+  hint("Thrown to " + (cast.state.name || "the screen") + (hands && hands.state.ready ? ". Your hand now scrolls and clicks there." : ". Scroll it from the bar below."), 3500);
+  return true;
+}
+// Every throw: to the connected screen, or (no screen) into the air on this device.
+function throwPage(g, vx, vy) {
+  if (cast && cast.connected) return castPage(g, vx, vy);
+  g.throw(vx, vy);
+  hint("Thrown into the air", 1200);
+  if (!castTipShown) { castTipShown = true; setTimeout(() => toast("Tip: connect a TV or laptop with the Cast button and the page lands there when you throw it.", 5000), 1300); }
+}
+async function bringBack(m) {
+  setRemote(false);
+  const g = pageTarget();
+  current = m.url; urlInput.value = m.url;
+  if (!g) { loadURL(m.url); hint("Back from the screen", 1800); return; }
+  g.land(0, 2);
+  hint("Back from the screen", 1800);
+  await g.load(m.url);
+  g.scrollToPos(m.pos);
+}
+// Press and hold the page to pick it up, then flick it and let go to throw it.
+function wireFling(el, getG) {
+  let f = null, flungAt = 0;
+  const stop = () => { if (f) clearTimeout(f.timer); };
+  el.addEventListener("pointerdown", (e) => {
+    const g = getG();
+    if (!g || (e.pointerType === "mouse" && e.button !== 0) || !e.isPrimary) return;
+    stop();
+    f = { x: e.clientX, y: e.clientY, held: false, trail: [], g, id: e.pointerId };
+    f.timer = setTimeout(() => {
+      if (!f) return;
+      f.held = true;
+      try { el.setPointerCapture(f.id); } catch {}
+      const p = g.viewXY(f.x, f.y);
+      g.grab(p.x, p.y);
+      f.start = p;
+      f.trail.push({ ...p, t: performance.now() });
+      try { navigator.vibrate && navigator.vibrate(12); } catch {}
+      hint(cast && cast.connected ? "Flick it towards the screen and let go" : "Flick it and let go to throw it into the air", 1800);
+    }, 380);
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!f || e.pointerId !== f.id) return;
+    if (!f.held) { if (Math.hypot(e.clientX - f.x, e.clientY - f.y) > 10) { stop(); f = null; } return; }
+    const p = f.g.viewXY(e.clientX, e.clientY), t = performance.now();
+    f.g.hold(p.x, p.y);
+    f.trail.push({ ...p, t });
+    while (f.trail.length > 2 && t - f.trail[0].t > 140) f.trail.shift();
+  });
+  const up = (e, cancelled) => {
+    if (!f || e.pointerId !== f.id) return;
+    stop();
+    const fl = f; f = null;
+    if (!fl.held) return;
+    flungAt = performance.now();
+    const a = fl.trail[0], b = fl.trail[fl.trail.length - 1], dt = a && b ? (b.t - a.t) / 1000 : 0;
+    let vx = dt > 0.01 ? (b.x - a.x) / dt : 0, vy = dt > 0.01 ? (b.y - a.y) / dt : 0;
+    // a quick flick throws; so does a slow drag that carries the card a long way
+    const dx = b.x - fl.start.x, dy = b.y - fl.start.y, far = Math.hypot(dx, dy);
+    if (Math.hypot(vx, vy) <= 1.2 && far >= 0.25) { vx = (dx / far) * 2; vy = (dy / far) * 2; }
+    if (!cancelled && Math.hypot(vx, vy) > 1.2) throwPage(fl.g, vx, vy); else fl.g.drop();
+  };
+  el.addEventListener("pointerup", (e) => up(e, false));
+  el.addEventListener("pointercancel", (e) => up(e, true));
+  return { get held() { return Boolean(f && f.held); }, recent: () => performance.now() - flungAt < 450 };
+}
+function openCast() {
+  caster();
+  // a phone scans the screen's QR code; a laptop types the code
+  $("cast-step2").textContent = isLaptop() ? "Type the code it shows:" : "Scan the QR code it shows with this phone's camera, or type its code here:";
+  renderCast();
+  castErr.hidden = true;
+  if (!cast.connected && !castCode.value) castCode.value = cast.lastCode();
+  castSheet.hidden = false;
+  (cast.connected ? $("cast-send") : castCode).focus();
+}
+function closeCast() { castSheet.hidden = true; pokeUI(); }
+async function connectScreen(code) {
+  castErr.hidden = true;
+  try { await caster().connectCode(code); return true; }
+  catch (e) { castErr.textContent = e.message || "Could not connect to the screen."; castErr.hidden = false; return false; }
+}
+castBtn.addEventListener("click", openCast);
+$("cast-close").addEventListener("click", closeCast);
+castSheet.addEventListener("click", (e) => { if (e.target === castSheet) closeCast(); });
+castCode.addEventListener("input", () => { castCode.value = cleanCode(castCode.value); });
+$("cast-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (await connectScreen(castCode.value)) hint("Connected. Throw the page at the screen.", 3500);
+});
+$("cast-present").addEventListener("click", async () => {
+  castErr.hidden = true;
+  try { await caster().connectPresentation(); hint("Connected. Throw the page at the screen.", 3500); }
+  catch (e) { if (e && e.name !== "AbortError" && e.name !== "NotAllowedError") { castErr.textContent = e.message || "Could not start casting."; castErr.hidden = false; } }
+});
+$("cast-send").addEventListener("click", () => {
+  closeCast();
+  const g = pageTarget();
+  // the same flight as a thrown page: picked up in the middle, sent up and away
+  if (g) { g.grab(0.5, 0.55); setTimeout(() => castPage(g, 0, -3), 160); }
+  else castPage(null);
+});
+$("cast-stop").addEventListener("click", () => { cast.disconnect(); closeCast(); });
+$("cast-up").addEventListener("click", () => cast && cast.send({ t: "scroll", dy: -0.6 }));
+$("cast-down").addEventListener("click", () => cast && cast.send({ t: "scroll", dy: 0.6 }));
+$("cast-back").addEventListener("click", () => cast && cast.send({ t: "back" }));
+$("cast-recall").addEventListener("click", () => cast && cast.send({ t: "recall" }));
+$("cast-done").addEventListener("click", () => setRemote(false));
+
+// Opened from the QR code on a screen (/?cast=CODE): connect to it straight away.
+{
+  const q = new URLSearchParams(location.search), code = cleanCode(q.get("cast") || "");
+  if (code.length === 4) {
+    const banner = $("cast-banner");
+    banner.textContent = "Connecting to the screen...";
+    banner.hidden = false;
+    connectScreen(code).then((ok) => {
+      banner.textContent = ok ? "Connected to the screen (" + code + "). Open a site, then pinch it and swing it towards the screen, or press, hold and flick it." : "Could not reach the screen " + code + ". Check that it still shows that code, then tap Cast to try again.";
+      if (ok) { q.delete("cast"); const qs = q.toString(); history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "")); }
+    });
+  }
+}
 
 // ---------- opened by scanning the laptop's QR code ----------
 // airpane.anchit-tandon.com/?pair=ABCD: go straight to the floating glass and pair
@@ -791,8 +979,8 @@ darkBtn.addEventListener("click", () => {
 ar.addEventListener("pointerdown", pokeUI);
 ar.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" && ar.classList.contains("ui-hidden")) pokeUI(); });
 ar.addEventListener("focusin", pokeUI);
-addEventListener("keydown", (e) => { if (e.key === "Escape" && !helpEl.hidden) hideHelp(); });
+addEventListener("keydown", (e) => { if (e.key === "Escape" && !helpEl.hidden) hideHelp(); if (e.key === "Escape" && !castSheet.hidden) closeCast(); });
 $("recenter-btn").addEventListener("click", () => { if (view === "holo") return holo.recenter(); if (!gyro.active) { look.yaw = 0; look.pitch = 0; camQ = quat(); } placePanel(); });
 
 // Test hook (no effect for users).
-window.__airpane = { normalizeInput, handEvent: onHandEvent, glassLinks: (n) => (glass ? glass.linkPoints(n) : []), get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, holoGlass: holoGlass && holoGlass.state, hands: hands && hands.state, handMode, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };
+window.__airpane = { normalizeInput, handEvent: onHandEvent, remoteMessage: (m) => onRemote(m, () => {}), glassLinks: (n) => (glass ? glass.linkPoints(n) : []), get state() { return { running, placed, dist, gyro: gyro.active, current, mode: modeChip.textContent, view, holo: holo && holo.state, pyr: pyr && pyr.state, glass: glass && glass.state, holoGlass: holoGlass && holoGlass.state, hands: hands && hands.state, handMode, cast: cast ? cast.state : null, remote, code: link ? link.code : null, peers: link ? link.peers : 0, uiHidden: ar.classList.contains("ui-hidden") }; } };
