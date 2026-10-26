@@ -31,10 +31,11 @@ function loadPeer() {
   return loading;
 }
 
-// Display side: listen under a short code. Calls onMessage(msg, reply) for each message.
+// Display side: listen under a short code. Calls onMessage(msg, reply, conn) for each message
+// (conn tells the senders apart).
 // A laptop that shows a QR code picks the code itself and the phone that scans it
 // listens under that code (`code`); otherwise a fresh one is made here.
-export async function host({ code: wanted, kind, onCode, onMessage, onPeers }) {
+export async function host({ code: wanted, kind, onCode, onMessage, onPeers, onLeave }) {
   const Peer = await loadPeer();
   let peer, code, conns = new Set();
   wanted = cleanCode(wanted);
@@ -52,8 +53,8 @@ export async function host({ code: wanted, kind, onCode, onMessage, onPeers }) {
   onCode && onCode(code);
   peer.on("connection", (c) => {
     c.on("open", () => { conns.add(c); onPeers && onPeers(conns.size); });
-    c.on("data", (m) => onMessage && onMessage(m, (r) => c.open && c.send(r)));
-    c.on("close", () => { conns.delete(c); onPeers && onPeers(conns.size); });
+    c.on("data", (m) => onMessage && onMessage(m, (r) => c.open && c.send(r), c));
+    c.on("close", () => { conns.delete(c); onLeave && onLeave(c); onPeers && onPeers(conns.size); });
   });
   peer.on("disconnected", () => { try { peer.reconnect(); } catch {} });
   return {
@@ -100,5 +101,6 @@ export async function join(code, { kind, onMessage, onClose, wait = 0, signal } 
   }
   conn.on("data", (m) => onMessage && onMessage(m));
   conn.on("close", () => onClose && onClose());
-  return { send: (m) => conn.open && conn.send(m), close: () => { try { peer.destroy(); } catch {} } };
+  // send says whether the message went out (false once the link has closed)
+  return { send: (m) => { if (!conn.open) return false; conn.send(m); return true; }, close: () => { try { peer.destroy(); } catch {} } };
 }

@@ -125,7 +125,7 @@ export function createGlass(root, { onState } = {}) {
     return { mode: "reader", w: doc.clientWidth, h: doc.clientHeight, fs: parseFloat(cs.fontSize) || 20, pad: cs.padding };
   };
   const hoverText = () => (s.hover ? (s.hover.textContent || s.hover.getAttribute("aria-label") || s.hover.href || "").replace(/\s+/g, " ").trim().slice(0, 90) : "");
-  const state = () => ({ air: s.air, throws: s.throws, sent: s.sent, pos: maxY() ? s.y / maxY() : 0, url: s.url, tab: s.tab, title: s.title, mode: s.mode, y: s.y, max: maxY(), hover: hoverText(), loading: s.loading, error: s.error, flip: s.flip, canBack: s.history.length > 0, canForward: s.fwd.length > 0, view: layout() });
+  const state = () => { const max = maxY(); return { air: s.air, throws: s.throws, sent: s.sent, pos: max ? s.y / max : 0, url: s.url, tab: s.tab, title: s.title, mode: s.mode, y: s.y, max, hover: hoverText(), loading: s.loading, error: s.error, flip: s.flip, canBack: s.history.length > 0, canForward: s.fwd.length > 0, view: layout() }; };
   const emit = () => onState && onState(state());
   let resizeT = null;
   // Screen rotation, window size or text size changes: tell the laptop the new layout.
@@ -383,7 +383,8 @@ export function createGlass(root, { onState } = {}) {
       clearTimeout(airT);
       const sp = Math.hypot(vx, vy) || 1;
       root.style.setProperty("--fx", (-vx / sp) * 120 + "%"); root.style.setProperty("--fy", (-(vy || -1) / sp) * 120 + "%");
-      root.classList.remove("held", "thrown", "sent", "landing"); void root.offsetWidth; root.classList.add("landing");
+      s.air = "";
+      root.classList.remove("held", "thrown", "sent", "dropping", "landing"); void root.offsetWidth; root.classList.add("landing");
       const b = document.createElement("div"); b.className = "g-burst"; b.style.left = "50%"; b.style.top = "50%";
       root.append(b); setTimeout(() => b.remove(), 900);
       airT = setTimeout(() => root.classList.remove("landing"), 900);

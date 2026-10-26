@@ -84,7 +84,8 @@ const watch = (p) => {
 
   await t("phone: scanning the QR code connects to the TV", async () => {
     await ph.goto(await tv.getAttribute("#qr", "data-url"), { waitUntil: "load" });
-    await ph.waitForFunction(() => /Connected to the screen/.test(document.getElementById("cast-banner").textContent), null, { timeout: 20000 });
+    await ph.waitForFunction(() => /Connected to .+ Open a site/.test(document.getElementById("cast-banner").textContent), null, { timeout: 20000 });
+    assert.equal(await ph.isVisible("#cast-banner button"), true, "the banner can disconnect from a screen that isn't yours");
     await tv.waitForFunction(() => window.__catch.state.senders === 1, null, { timeout: 15000 });
     assert.match(await tv.textContent("#wait-status"), /phone is connected/);
     assert.equal(new URL(ph.url()).searchParams.has("cast"), false, "the code is taken out of the address");
@@ -186,8 +187,14 @@ const watch = (p) => {
     await tv.evaluate(() => { window.__catch.message({ t: "cast", url: "javascript:alert(1)" }); window.__catch.message({ t: "eval" }); window.__catch.message("{not json"); });
     assert.equal(await tv.evaluate(() => window.__catch.state.caught), 3);
     await tv.evaluate(() => window.__catch.message({ t: "cast", url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ", from: "iPhone" }));
-    await tv.waitForFunction(() => /youtube\.com\/embed\/aqz-KE-bpKQ/.test(window.__catch.state.video), null, { timeout: 5000 });
+    await tv.waitForFunction(() => /youtube\.com\/embed\/aqz-KE-bpKQ\?autoplay=1&mute=1/.test(window.__catch.state.video), null, { timeout: 5000 });
     assert.equal(await tv.isVisible("#glass"), false);
+    // the phone's bar turns into a Sound on button for the video
+    await ph.waitForFunction(() => document.getElementById("cast-bar").classList.contains("video"), null, { timeout: 5000 });
+    await wake(ph, "#cast-sound");
+    assert.equal(await ph.isVisible("#cast-sound"), true); assert.equal(await ph.isVisible("#cast-down"), false);
+    await ph.click("#cast-sound");
+    await tv.waitForFunction(() => /Sound on/.test(document.getElementById("badge").textContent), null, { timeout: 5000 });
   });
 
   await t("phone: Disconnect; the next throw goes into the air on the phone", async () => {
@@ -202,6 +209,20 @@ const watch = (p) => {
     assert.equal(await tv.evaluate(() => window.__catch.state.caught), 4, "the TV got nothing new");
   });
 
+  await t("screen: messages from a device that was never let in are ignored", async () => {
+    const n = await tv.evaluate(() => window.__catch.state.caught);
+    await tv.waitForTimeout(500);
+    await tv.evaluate(() => window.__catch.stranger({ t: "cast", url: "https://example.com/" }));
+    await tv.waitForTimeout(300);
+    assert.equal(await tv.evaluate(() => window.__catch.state.caught), n);
+  });
+
+  await t("screen: while a page shows, the code and QR code stay in the corner", async () => {
+    assert.equal(await tv.isVisible("#chip"), true);
+    assert.equal(await tv.textContent("#chip-code"), code);
+    assert.equal(await tv.locator("#chip-qr svg").count(), 1);
+  });
+
   await t("phone: a wrong code says so", async () => {
     await ph.waitForTimeout(1200);
     await wake(ph);
@@ -211,6 +232,29 @@ const watch = (p) => {
     await ph.waitForSelector("#cast-err:not([hidden])", { timeout: 30000 });
     assert.match(await ph.textContent("#cast-err"), /No screen with that code/);
     await ph.click("#cast-close");
+  });
+
+  await t("phone: typing the code (no QR secret) needs Allow on the screen before anything lands", async () => {
+    await ph.waitForTimeout(600);
+    await wake(ph);
+    await ph.click("#cast-btn");
+    await ph.fill("#cast-code", code);
+    await ph.click("#cast-go");
+    await tv.waitForSelector("#allow:not([hidden])", { timeout: 20000 });
+    assert.match(await tv.textContent("#allow-who"), /Android phone/);
+    await ph.waitForSelector("#cast-wait:not([hidden])");
+    assert.equal(await ph.isVisible("#cast-send"), false, "no sending before the screen allows it");
+    await tv.screenshot({ path: `${SHOTS}/cast-tv-allow.png` });
+    const n = await tv.evaluate(() => window.__catch.state.caught);
+    await ph.click("#cast-close");
+    await ph.evaluate(() => { const a = window.__airpane; a.handEvent({ t: "grab", x: 0.5, y: 0.6 }); a.handEvent({ t: "throw", x: 0.5, y: 0.3, vx: 0, vy: -2.5 }); });
+    await ph.waitForTimeout(800);
+    assert.equal(await tv.evaluate(() => window.__catch.state.caught), n, "nothing lands before Allow");
+    await tv.keyboard.press("Enter"); // a TV remote's OK: Allow has the focus
+    await tv.waitForSelector("#allow", { state: "hidden" });
+    await ph.waitForFunction(() => window.__airpane.state.cast.allowed, null, { timeout: 10000 });
+    await ph.evaluate(() => { const a = window.__airpane; a.handEvent({ t: "grab", x: 0.5, y: 0.6 }); a.handEvent({ t: "throw", x: 0.5, y: 0.3, vx: 0, vy: -2.5 }); });
+    await tv.waitForFunction((n) => window.__catch.state.caught === n + 1, n, { timeout: 10000 });
   });
 
   await t("phone + TV: zero console errors", async () => { assert.deepEqual(ph.__errors, []); assert.deepEqual(tv.__errors, []); });

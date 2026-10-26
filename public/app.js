@@ -752,16 +752,22 @@ addEventListener("popstate", (e) => {
 // clicks on the screen; "Bring back" pulls the page back here.
 const ME = deviceName(navigator.userAgent);
 const castSheet = $("cast-sheet"), castBtn = $("cast-btn"), castBar = $("cast-bar"), castCode = $("cast-code"), castErr = $("cast-err");
-let cast = null, remote = false, castTitle = "", castTipShown = false;
+let cast = null, remote = false, castTitle = "", castTipShown = false, recallAt = -1e9, wasAllowed = false;
 $("cast-site").textContent = location.host + "/catch";
 function caster() {
   cast = cast || createCaster({ onChange: renderCast, onMessage: onScreen });
   return cast;
 }
 function renderCast(st = cast ? cast.state : {}) {
+  // a screen that never let this phone in (someone pressed Don't allow, or nobody answered)
+  if (!st.connected && cast && cast.askedOnce && !wasAllowed) toast("The screen did not let this phone in.", 5000);
+  if (cast) cast.askedOnce = st.connected && !st.allowed ? true : st.connected ? cast.askedOnce : false;
+  wasAllowed = Boolean(st.connected && st.allowed);
   $("cast-off").hidden = Boolean(st.connected);
   $("cast-on").hidden = !st.connected;
   $("cast-name").textContent = st.name || "the screen";
+  $("cast-wait").hidden = !st.connected || Boolean(st.allowed);
+  $("cast-how").hidden = $("cast-send").hidden = !st.allowed;
   $("cast-present").hidden = !st.presentAvailable || Boolean(st.connected);
   $("cast-go").disabled = Boolean(st.connecting);
   $("cast-go").textContent = st.connecting ? "Connecting" : "Connect";
@@ -771,14 +777,21 @@ function renderCast(st = cast ? cast.state : {}) {
   if (!st.connected) setRemote(false);
 }
 function onScreen(m) {
-  if (m.t === "state") { castTitle = m.title || (m.url ? new URL(m.url).host : ""); $("cast-bar-title").textContent = "On the screen: " + (m.loading ? "opening..." : castTitle || "a page"); }
-  else if (m.t === "page") bringBack(m);
+  if (m.t === "state") {
+    castTitle = m.title || (m.url ? new URL(m.url).host : "");
+    $("cast-bar-title").textContent = "On the screen: " + (m.loading ? "opening..." : castTitle || "a page");
+    // a video plays by itself on the screen: no scrolling there, just sound
+    castBar.classList.toggle("video", m.video);
+  }
+  else if (m.t === "screen" && m.allowed && remote === false && $("cast-banner").dataset.waiting) { $("cast-banner").dataset.waiting = ""; bannerConnected(); }
+  // only when this phone asked for it: a screen can't push pages onto the phone
+  else if (m.t === "page" && performance.now() - recallAt < 10000) { recallAt = -1e9; bringBack(m); }
 }
 function setRemote(on) {
   remote = Boolean(on);
   castBar.hidden = !remote;
   ar.classList.toggle("casting", remote);
-  // a video plays on the screen by itself: no scrolling to do there
+  document.body.classList.toggle("casting", remote);
   if (remote) pokeUI();
 }
 // The page this device's gestures and touches act on (the Floating glass or the Hologram's page).
@@ -792,8 +805,13 @@ function pageNow() {
 function castPage(g, vx = 0, vy = -2) {
   const p = pageNow();
   if (!p) { if (g) g.drop(); toast("Open a page first, then throw it."); return false; }
+  if (!cast.state.allowed) { if (g) g.drop(); toast("Press Allow on the screen first, then throw again.", 4500); return false; }
+  if (!cast.send({ t: "cast", url: p.url, title: p.title, pos: p.pos, from: ME, vx, vy })) {
+    if (g) g.drop(); setRemote(false);
+    toast("The screen is not answering. Tap Cast to connect again.", 5000);
+    return false;
+  }
   if (g) g.throw(vx, vy, { away: true });
-  cast.send({ t: "cast", url: p.url, title: p.title, pos: p.pos, from: ME, vx, vy });
   castTitle = p.title;
   $("cast-bar-title").textContent = "On the screen: " + (p.title || "a page");
   setRemote(true);
@@ -826,6 +844,7 @@ function wireFling(el, getG) {
     if (!g || (e.pointerType === "mouse" && e.button !== 0) || !e.isPrimary) return;
     stop();
     f = { x: e.clientX, y: e.clientY, held: false, trail: [], g, id: e.pointerId };
+    // a mouse holds a little longer, so an ordinary slow click stays a click
     f.timer = setTimeout(() => {
       if (!f) return;
       f.held = true;
@@ -836,11 +855,12 @@ function wireFling(el, getG) {
       f.trail.push({ ...p, t: performance.now() });
       try { navigator.vibrate && navigator.vibrate(12); } catch {}
       hint(cast && cast.connected ? "Flick it towards the screen and let go" : "Flick it and let go to throw it into the air", 1800);
-    }, 380);
+    }, e.pointerType === "mouse" ? 550 : 380);
   });
   el.addEventListener("pointermove", (e) => {
     if (!f || e.pointerId !== f.id) return;
-    if (!f.held) { if (Math.hypot(e.clientX - f.x, e.clientY - f.y) > 10) { stop(); f = null; } return; }
+    // moving before the hold completes is a scroll (the same 8px the drag uses), not a pick-up
+    if (!f.held) { if (Math.hypot(e.clientX - f.x, e.clientY - f.y) > 8) { stop(); f = null; } return; }
     const p = f.g.viewXY(e.clientX, e.clientY), t = performance.now();
     f.g.hold(p.x, p.y);
     f.trail.push({ ...p, t });
@@ -874,9 +894,9 @@ function openCast() {
   (cast.connected ? $("cast-send") : castCode).focus();
 }
 function closeCast() { castSheet.hidden = true; pokeUI(); }
-async function connectScreen(code) {
+async function connectScreen(code, key = "") {
   castErr.hidden = true;
-  try { await caster().connectCode(code); return true; }
+  try { await caster().connectCode(code, key); return true; }
   catch (e) { castErr.textContent = e.message || "Could not connect to the screen."; castErr.hidden = false; return false; }
 }
 castBtn.addEventListener("click", openCast);
@@ -899,23 +919,39 @@ $("cast-send").addEventListener("click", () => {
   if (g) { g.grab(0.5, 0.55); setTimeout(() => castPage(g, 0, -3), 160); }
   else castPage(null);
 });
-$("cast-stop").addEventListener("click", () => { cast.disconnect(); closeCast(); });
+$("cast-stop").addEventListener("click", () => { cast.askedOnce = false; cast.disconnect(); closeCast(); });
 $("cast-up").addEventListener("click", () => cast && cast.send({ t: "scroll", dy: -0.6 }));
 $("cast-down").addEventListener("click", () => cast && cast.send({ t: "scroll", dy: 0.6 }));
 $("cast-back").addEventListener("click", () => cast && cast.send({ t: "back" }));
-$("cast-recall").addEventListener("click", () => cast && cast.send({ t: "recall" }));
+$("cast-recall").addEventListener("click", () => { if (cast && cast.send({ t: "recall" })) recallAt = performance.now(); });
+$("cast-sound").addEventListener("click", () => cast && cast.send({ t: "play" }));
 $("cast-done").addEventListener("click", () => setRemote(false));
 
-// Opened from the QR code on a screen (/?cast=CODE): connect to it straight away.
+// Opened from the QR code on a screen (/?cast=CODE&k=SECRET): connect to it straight away.
+// The banner names the screen and can disconnect, in case the link came from someone else.
+function bannerConnected() {
+  const banner = $("cast-banner"), st = cast.state;
+  banner.innerHTML = "";
+  const text = document.createElement("span");
+  text.textContent = st.allowed ? "Connected to " + (st.name || "the screen") + ". Open a site, then pinch it and swing it towards the screen, or press, hold and flick it." : "Connected. Press Allow on the screen to let this phone in.";
+  const stop = document.createElement("button");
+  stop.type = "button"; stop.className = "chip"; stop.textContent = "Not my screen: disconnect";
+  stop.addEventListener("click", () => { cast.askedOnce = false; cast.disconnect(); banner.hidden = true; });
+  banner.append(text, stop);
+}
 {
-  const q = new URLSearchParams(location.search), code = cleanCode(q.get("cast") || "");
+  const q = new URLSearchParams(location.search), code = cleanCode(q.get("cast") || ""), key = (q.get("k") || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 40);
   if (code.length === 4) {
     const banner = $("cast-banner");
     banner.textContent = "Connecting to the screen...";
     banner.hidden = false;
-    connectScreen(code).then((ok) => {
-      banner.textContent = ok ? "Connected to the screen (" + code + "). Open a site, then pinch it and swing it towards the screen, or press, hold and flick it." : "Could not reach the screen " + code + ". Check that it still shows that code, then tap Cast to try again.";
-      if (ok) { q.delete("cast"); const qs = q.toString(); history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "")); }
+    connectScreen(code, key).then((ok) => {
+      if (ok) {
+        banner.dataset.waiting = cast.state.allowed ? "" : "1";
+        bannerConnected();
+        q.delete("cast"); q.delete("k");
+        const qs = q.toString(); history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : ""));
+      } else banner.textContent = "Could not reach the screen " + code + ". Check that it still shows that code, then open a site and tap the Cast button to try again.";
     });
   }
 }

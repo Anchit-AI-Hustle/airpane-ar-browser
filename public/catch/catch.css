@@ -33,3 +33,21 @@ body { min-height: 100vh; background: radial-gradient(1000px 600px at 75% 0%, rg
   .qr { width: min(100%, 260px); grid-row: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .video.landing { animation-duration: 0.01s; } }
+
+/* the code stays on screen while a page shows, so another phone (or a dropped one) can connect */
+.code-chip { position: absolute; right: 14px; bottom: calc(env(safe-area-inset-bottom) + 14px); z-index: 5; display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 8px; border-radius: 14px; background: rgba(13, 18, 36, 0.82); border: 1px solid var(--line); opacity: 0.7; transition: opacity 0.3s; }
+.code-chip:hover { opacity: 1; }
+.code-chip[hidden] { display: none; }
+.chip-qr { width: 72px; height: 72px; padding: 4px; border-radius: 8px; background: #fff; }
+.chip-qr svg { width: 100%; height: 100%; display: block; }
+.code-chip small { display: block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.code-chip b { font: 700 22px/1.1 var(--display); letter-spacing: 0.18em; color: var(--mint); }
+
+.allow { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.7); }
+.allow[hidden] { display: none; }
+.allow-card { width: min(520px, 100%); padding: 24px; border-radius: 18px; background: #0d1224; border: 1px solid rgba(124, 245, 211, 0.4); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); }
+.allow-card h2 { font: 700 clamp(20px, 2.6vw, 28px)/1.2 var(--display); margin: 0 0 10px; }
+.allow-card p { color: #c9d0e3; margin: 0 0 18px; line-height: 1.5; }
+.allow-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.allow-row .btn-primary { flex: 1 1 160px; justify-content: center; font-size: 17px; }
+.allow-row .chip { padding: 12px 18px; font-size: 15px; }

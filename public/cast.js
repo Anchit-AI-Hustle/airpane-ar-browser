@@ -22,12 +22,12 @@ export const httpUrl = (u) => { try { const x = new URL(u); return /^https?:$/.t
 export function cleanMsg(m) {
   if (!m || typeof m !== "object" || typeof m.t !== "string") return null;
   switch (m.t) {
-    case "hello": return { t: "hello", from: str(m.from, 40) };
+    case "hello": return { t: "hello", from: str(m.from, 40), k: typeof m.k === "string" && /^[A-Za-z0-9]{1,40}$/.test(m.k) ? m.k : "" };
     case "cast": { const url = httpUrl(m.url); return url ? { t: "cast", url, pos: num(m.pos, 0, 1), title: str(m.title, 200), from: str(m.from, 40), vx: num(m.vx, -9, 9), vy: num(m.vy, -9, 9, -1) } : null; }
     case "cur": case "click": return { t: m.t, x: num(m.x, 0, 1, 0.5), y: num(m.y, 0, 1, 0.5) };
     case "scroll": return { t: "scroll", dy: num(m.dy, -2, 2) };
-    case "back": case "forward": case "lost": case "recall": case "bye": return { t: m.t };
-    case "screen": return { t: "screen", name: str(m.name, 40) };
+    case "back": case "forward": case "lost": case "recall": case "bye": case "play": return { t: m.t };
+    case "screen": return { t: "screen", name: str(m.name, 40), allowed: m.allowed !== false };
     case "state": return { t: "state", url: httpUrl(m.url), title: str(m.title, 200), pos: num(m.pos, 0, 1), loading: Boolean(m.loading), error: str(m.error, 200), video: Boolean(m.video) };
     case "page": { const url = httpUrl(m.url); return url ? { t: "page", url, pos: num(m.pos, 0, 1) } : null; }
     default: return null;
@@ -46,10 +46,11 @@ export function videoEmbed(raw) {
     if (u.pathname === "/watch") v = id(u.searchParams.get("v"));
     else { const m = u.pathname.match(/^\/(embed|shorts|live)\/([\w-]+)/); if (m) v = id(m[2]); }
   } else if (h === "youtu.be") v = id(u.pathname.slice(1));
-  if (v) return `https://www.youtube.com/embed/${v}?autoplay=1&playsinline=1`;
+  // muted: a TV nobody has touched yet may only start a video without sound ("play" unmutes)
+  if (v) return `https://www.youtube.com/embed/${v}?autoplay=1&mute=1&playsinline=1&enablejsapi=1`;
   if (h === "vimeo.com" || h === "player.vimeo.com") {
     const m = u.pathname.match(/^\/(?:video\/)?(\d{5,12})/);
-    if (m) return `https://player.vimeo.com/video/${m[1]}?autoplay=1`;
+    if (m) return `https://player.vimeo.com/video/${m[1]}?autoplay=1&muted=1`;
   }
   return "";
 }
@@ -66,6 +67,14 @@ export function deviceName(ua = "") {
   return "Computer";
 }
 
+// A screen's secret for this session, carried by its QR code. A phone that only knows the
+// four-letter code has to be let in on the screen itself.
+export function newKey(n = 20) {
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789", r = new Uint8Array(n);
+  crypto.getRandomValues(r);
+  return Array.from(r, (b) => A[b % A.length]).join("");
+}
+
 // The screen page's address (tests point both sides at a local PeerJS server with ?peer=).
 export function catchUrl(params = {}) {
   const q = new URLSearchParams(params), p = new URLSearchParams(location.search).get("peer");
@@ -79,18 +88,18 @@ export function createCaster({ onChange, onMessage } = {}) {
   let conn = null, connecting = false, avail = false, request = null;
   const me = deviceName(navigator.userAgent);
   const changed = () => onChange && onChange(state());
-  const state = () => ({ connected: Boolean(conn), connecting, kind: conn ? conn.kind : "", code: conn ? conn.code : "", name: conn ? conn.name : "", presentAvailable: avail });
+  const state = () => ({ connected: Boolean(conn), connecting, allowed: Boolean(conn && conn.allowed), kind: conn ? conn.kind : "", code: conn ? conn.code : "", name: conn ? conn.name : "", presentAvailable: avail });
   const got = (raw) => {
     const m = cleanMsg(typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw);
     if (!m) return;
-    if (m.t === "screen" && conn) { conn.name = m.name || conn.name; changed(); }
+    if (m.t === "screen" && conn) { conn.name = m.name || conn.name; conn.allowed = m.allowed; changed(); }
     onMessage && onMessage(m);
   };
   const closed = (c) => { if (conn === c) { conn = null; changed(); } };
-  function use(c) {
+  function use(c, k = "") {
     const old = conn; conn = c;
     if (old) { try { old.send({ t: "bye" }); } catch {} old.close(); }
-    c.send({ t: "hello", from: me });
+    c.send({ t: "hello", from: me, k });
     changed();
   }
 
@@ -105,16 +114,16 @@ export function createCaster({ onChange, onMessage } = {}) {
   return {
     get state() { return state(); },
     get connected() { return Boolean(conn); },
-    // a screen showing this code at /catch
-    async connectCode(code) {
+    // a screen showing this code at /catch; key: the secret from its QR code, if scanned
+    async connectCode(code, key = "") {
       code = cleanCode(code);
       if (code.length !== 4) throw new Error("The code has 4 letters.");
       connecting = true; changed();
       try {
         let c;
         const l = await join(code, { kind: "screen", onMessage: got, onClose: () => closed(c) });
-        c = { kind: "peer", code, name: "Screen " + code, send: (m) => l.send(m), close: () => l.close() };
-        use(c);
+        c = { kind: "peer", code, name: "Screen " + code, allowed: false, send: (m) => l.send(m), close: () => l.close() };
+        use(c, key);
       } finally { connecting = false; changed(); }
       try { localStorage.setItem("airpane-screen", code); } catch {}
     },
@@ -124,20 +133,24 @@ export function createCaster({ onChange, onMessage } = {}) {
       connecting = true; changed();
       try {
         const pc = await request.start();
-        let c;
-        await new Promise((ok, bad) => {
-          if (pc.state === "connected") return ok();
-          pc.onconnect = () => ok();
-          pc.onclose = pc.onterminate = () => bad(new Error("The screen closed before it connected."));
-          setTimeout(() => bad(new Error("The screen did not answer.")), 30000);
-        });
-        c = { kind: "present", code: "", name: "Cast screen", send: (m) => { if (pc.state === "connected") pc.send(JSON.stringify(m)); }, close: () => { try { pc.terminate(); } catch {} } };
+        let c, timer = 0;
+        try {
+          await new Promise((ok, bad) => {
+            if (pc.state === "connected") return ok();
+            pc.onconnect = () => ok();
+            pc.onclose = pc.onterminate = () => bad(new Error("The screen closed before it connected."));
+            timer = setTimeout(() => bad(new Error("The screen did not answer.")), 30000);
+          });
+        } catch (e) { try { pc.terminate(); } catch {} throw e; } // don't leave a screen running that nobody controls
+        finally { clearTimeout(timer); }
+        // the browser's own device picker is the permission: no Allow step on the screen
+        c = { kind: "present", code: "", name: "Cast screen", allowed: true, send: (m) => { if (pc.state !== "connected") return false; pc.send(JSON.stringify(m)); return true; }, close: () => { try { pc.terminate(); } catch {} } };
         pc.onmessage = (e) => got(e.data);
         pc.onclose = pc.onterminate = () => closed(c);
         use(c);
       } finally { connecting = false; changed(); }
     },
-    send(m) { if (conn) conn.send(m); return Boolean(conn); },
+    send(m) { return Boolean(conn && conn.send(m)); },
     disconnect() { const c = conn; conn = null; if (c) { try { c.send({ t: "bye" }); } catch {} c.close(); } changed(); },
     lastCode() { try { return cleanCode(localStorage.getItem("airpane-screen") || ""); } catch { return ""; } },
   };

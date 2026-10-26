@@ -148,6 +148,7 @@
       <button id="cast-up" class="icon-btn" type="button" aria-label="Scroll the screen up"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button id="cast-down" class="icon-btn" type="button" aria-label="Scroll the screen down"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button id="cast-back" class="chip" type="button">Back</button>
+      <button id="cast-sound" class="chip" type="button">Sound on</button>
       <button id="cast-recall" class="chip" type="button">Bring back</button>
       <button id="cast-done" class="icon-btn" type="button" aria-label="Stop controlling the screen"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     </div>
@@ -262,7 +263,8 @@
       </div>
       <div id="cast-on" hidden>
         <p class="cast-now"><span class="cast-dot" aria-hidden="true"></span>Connected to <b id="cast-name">the screen</b></p>
-        <p class="cast-how">Pinch the page, swing it and let go, or press and hold the page and flick it. It flies off here and lands on the screen.</p>
+        <p id="cast-wait" class="cast-wait" role="status" hidden>Waiting: press <b>Allow</b> on the screen to let this phone in.</p>
+        <p id="cast-how" class="cast-how">Pinch the page, swing it and let go, or press and hold the page and flick it. It flies off here and lands on the screen.</p>
         <div class="cast-row">
           <button id="cast-send" class="btn-primary" type="button">Send this page now</button>
           <button id="cast-stop" class="chip" type="button">Disconnect</button>

@@ -1,5 +1,6 @@
 // The screen pages are thrown at: a TV, laptop or tablet opens /catch and waits under a
-// short code. A phone connects with that code (or the QR code) and throws pages here; they
+// short code. A phone connects with the QR code (which carries a secret for this session) or
+// types the code (then someone has to press Allow on the screen), and throws pages here; they
 // land with an animation and fill the screen. The phone can then scroll, click and go back
 // on this screen, or pull the page back.
 //
@@ -7,15 +8,19 @@
 // page talks to the computer that opened it instead, and needs no code.
 import { host, cleanCode } from "/link.js";
 import { createGlass } from "/glass.js";
-import { cleanMsg, videoEmbed, deviceName } from "/cast.js";
+import { cleanMsg, videoEmbed, deviceName, newKey } from "/cast.js";
 
 const $ = (id) => document.getElementById(id);
 const waitEl = $("wait"), showEl = $("show"), videoEl = $("video"), badge = $("badge"), statusEl = $("wait-status");
 const ME = deviceName(navigator.userAgent);
 const PRESENT = Boolean(navigator.presentation && navigator.presentation.receiver);
-const S = { code: "", senders: 0, caught: 0, mode: "", url: "", from: "", ready: false, error: "" };
+const S = { code: "", senders: 0, caught: 0, mode: "", url: "", from: "", ready: false, error: "", asking: 0 };
+const KEY = newKey(); // new each time the page opens: an old QR photo stops working
 let link = null, lastCast = 0;
 const presentConns = new Set();
+// Senders allowed to control this screen (connection -> reply). Nothing else is acted on, and
+// only they hear what the screen is showing.
+const allowed = new Map();
 
 $("site").textContent = location.host;
 
@@ -23,10 +28,51 @@ $("site").textContent = location.host;
 const glass = createGlass($("glass"), { onState: (st) => { if (S.mode === "page") tell({ t: "state", url: st.url, title: st.title, pos: st.pos, loading: st.loading, error: st.error, video: false }); } });
 glass.setFlip(false);
 
-function tell(m) {
-  if (link) link.broadcast(m);
-  for (const c of presentConns) if (c.state === "connected") c.send(JSON.stringify(m));
+function tell(m) { for (const reply of allowed.values()) reply(m); }
+function counted() {
+  S.senders = allowed.size;
+  const n = S.senders;
+  waiting(n ? (n === 1 ? "A phone is connected. Throw a page at this screen." : n + " devices are connected.") : "Waiting for a phone", n > 0);
 }
+function allow(conn, reply, from) {
+  allowed.set(conn, reply);
+  reply({ t: "screen", name: ME + (S.code ? " " + S.code : ""), allowed: true });
+  if (S.mode) reply(S.mode === "page" ? { t: "state", ...pick(glass.state) } : { t: "state", url: S.url, title: "Video", pos: 0, video: true });
+  say((from || "A phone") + " connected. Throw a page at this screen.");
+  counted();
+}
+function forget(conn) {
+  // a phone that went away: say so on a screen that is showing its page
+  if (allowed.delete(conn) && S.mode) say("A phone disconnected. Scan the code in the corner to connect again.", 5000);
+  pending.delete(conn);
+  if (askingFor === conn) nextAsk();
+  counted();
+}
+// A phone that only typed the code: ask on the screen (one at a time; works with a TV remote).
+const pending = new Map(), allowEl = $("allow");
+let askingFor = null, askT = 0;
+function nextAsk() {
+  clearTimeout(askT);
+  askingFor = null; allowEl.hidden = true;
+  const first = pending.keys().next();
+  if (first.done) return;
+  askingFor = first.value;
+  S.asking++;
+  $("allow-who").textContent = pending.get(askingFor).from || "A phone";
+  allowEl.hidden = false; $("allow-yes").focus();
+  askT = setTimeout(() => answer(false), 60000); // nobody answered
+}
+function answer(yes) {
+  const conn = askingFor;
+  if (!conn) return;
+  const { reply, from } = pending.get(conn);
+  pending.delete(conn);
+  if (yes) allow(conn, reply, from);
+  else { reply({ t: "screen", name: ME, allowed: false }); setTimeout(() => { try { conn.close && conn.close(); } catch {} }, 300); }
+  nextAsk();
+}
+$("allow-yes").addEventListener("click", () => answer(true));
+$("allow-no").addEventListener("click", () => answer(false));
 let badgeT = 0;
 function say(text, ms = 3500) {
   badge.textContent = text; badge.classList.add("show");
@@ -41,7 +87,7 @@ async function caught(m) {
   S.caught++; S.from = m.from || "your phone";
   waitEl.hidden = true; showEl.hidden = false;
   const video = videoEmbed(m.url);
-  say("Caught from " + S.from + (m.title ? ": " + m.title : ""));
+  say("Caught from " + S.from + (m.title ? ": " + m.title : "") + (video ? ". Starts muted: tap Sound on the phone, or click the video." : ""), video ? 6000 : 3500);
   if (video) {
     S.mode = "video"; S.url = m.url;
     glass.stop(); glass.hideCursor();
@@ -51,28 +97,47 @@ async function caught(m) {
     return;
   }
   S.mode = "page"; S.url = m.url;
-  videoEl.hidden = true; videoEl.removeAttribute("src");
+  videoEl.hidden = true; videoEl.src = "about:blank"; // stop the sound of a video shown before
   glass.start();
   glass.land(m.vx, m.vy);
   await glass.load(m.url);
   if (S.url === m.url && m.pos) glass.scrollToPos(m.pos);
 }
 
-function onMessage(raw, reply) {
+// Sound on for the video player on this screen (YouTube / Vimeo take commands by postMessage).
+function unmute() {
+  const w = videoEl.contentWindow;
+  if (!w || videoEl.hidden) return;
+  let origin = "*";
+  try { origin = new URL(videoEl.src).origin; } catch {}
+  for (const c of ["unMute", "playVideo"]) w.postMessage(JSON.stringify({ event: "command", func: c, args: [] }), origin);
+  w.postMessage(JSON.stringify({ method: "setVolume", value: 1 }), origin);
+  w.postMessage(JSON.stringify({ method: "play" }), origin);
+  say("Sound on. If it stays quiet, click the video once on this screen.");
+}
+
+// conn: who sent it (a direct link, or a Cast connection, which is always allowed).
+function onMessage(raw, reply, conn) {
   const m = cleanMsg(typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw);
-  if (!m) return;
+  if (!m || !conn) return;
   if (m.t === "hello") {
-    reply({ t: "screen", name: ME + (S.code ? " " + S.code : "") });
-    if (S.mode) reply(S.mode === "page" ? { t: "state", ...pick(glass.state) } : { t: "state", url: S.url, title: "Video", pos: 0, video: true });
-    say((m.from || "A phone") + " connected. Throw a page at this screen.");
+    if (allowed.has(conn) || pending.has(conn)) return;
+    // the QR code's secret, or the browser's own Cast picker, lets it straight in
+    if (presentConns.has(conn) || m.k === KEY) return allow(conn, reply, m.from);
+    reply({ t: "screen", name: ME, allowed: false });
+    pending.set(conn, { reply, from: m.from });
+    if (!askingFor) nextAsk();
     return;
   }
+  if (!allowed.has(conn) && conn !== testConn) return; // not let in: ignore everything else
+  if (m.t === "bye") return forget(conn);
   if (m.t === "cast") return caught(m);
   if (m.t === "recall") {
     if (S.mode === "page") reply({ t: "page", url: glass.state.url, pos: glass.state.pos });
     else if (S.mode === "video") reply({ t: "page", url: S.url, pos: 0 });
     return;
   }
+  if (S.mode === "video" && (m.t === "play" || m.t === "click")) return unmute();
   if (S.mode !== "page") return;
   if (m.t === "cur") glass.cursor(m.x, m.y);
   else if (m.t === "lost") glass.hideCursor();
@@ -97,6 +162,7 @@ function drawQR(url) {
     if (!window.qrcode) return setTimeout(draw, 100);
     const qr = window.qrcode(0, "M"); qr.addData(url); qr.make();
     box.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 3, scalable: true });
+    $("chip-qr").innerHTML = box.innerHTML; // the small copy in the corner while a page shows
   };
   draw();
 }
@@ -114,13 +180,12 @@ async function startPeer() {
         try { localStorage.setItem("airpane-catch-code", c); } catch {} // the same code next time
         const q = new URLSearchParams({ cast: c }), peer = new URLSearchParams(location.search).get("peer");
         if (peer) q.set("peer", peer);
+        q.set("k", KEY);
         drawQR(location.origin + "/?" + q.toString());
-      },
-      onPeers: (n) => {
-        S.senders = n;
-        waiting(n ? (n === 1 ? "A phone is connected. Throw a page at this screen." : n + " devices are connected.") : "Waiting for a phone", n > 0);
+        $("chip-code").textContent = c;
       },
       onMessage,
+      onLeave: forget,
     });
     S.ready = true;
     waiting("Waiting for a phone");
@@ -135,13 +200,14 @@ function startPresentation() {
   // Opened by Chrome's Cast / second-screen picker: the computer that opened it is the sender.
   $("wait-lede").textContent = "Connected. Throw a page from your computer and it lands here.";
   $("wait-steps").hidden = true; $("qr").hidden = true;
-  document.querySelector(".wait-code").hidden = true; $("full").hidden = true;
+  document.querySelector(".wait-code").hidden = true; $("full").hidden = true; $("chip").hidden = true;
   const add = (c) => {
-    presentConns.add(c); S.senders = presentConns.size;
+    presentConns.add(c);
     const reply = (m) => { if (c.state === "connected") c.send(JSON.stringify(m)); };
-    c.addEventListener("message", (e) => onMessage(e.data, reply));
-    c.addEventListener("close", () => { presentConns.delete(c); S.senders = presentConns.size; });
-    c.addEventListener("terminate", () => { presentConns.delete(c); S.senders = presentConns.size; });
+    c.addEventListener("message", (e) => onMessage(e.data, reply, c));
+    const gone = () => { presentConns.delete(c); forget(c); };
+    c.addEventListener("close", gone);
+    c.addEventListener("terminate", gone);
     waiting("Connected", true);
   };
   navigator.presentation.receiver.connectionList.then((list) => {
@@ -184,4 +250,5 @@ keepAwake();
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") keepAwake(); });
 
 // Test hook (no effect for users).
-window.__catch = { get state() { return { ...S, present: PRESENT, glass: glass.state, video: videoEl.hidden ? "" : videoEl.src }; }, message: (m) => onMessage(m, () => {}) };
+const testConn = {}; // stands for an allowed sender in tests
+window.__catch = { get state() { return { ...S, present: PRESENT, glass: glass.state, video: videoEl.hidden ? "" : videoEl.src, key: KEY }; }, message: (m) => onMessage(m, () => {}, testConn), stranger: (m) => onMessage(m, () => {}, {}) };

@@ -39,6 +39,15 @@
     <div id="glass" class="glass" hidden></div>
     <iframe id="video" class="video" title="Video" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
     <div id="badge" class="badge" role="status" aria-live="polite"></div>
+    <div id="chip" class="code-chip" aria-label="Screen code"><div id="chip-qr" class="chip-qr" aria-hidden="true"></div><span><small>Screen code</small><b id="chip-code">....</b></span></div>
+  </div>
+
+  <div id="allow" class="allow" role="alertdialog" aria-modal="true" aria-labelledby="allow-title" hidden>
+    <div class="allow-card">
+      <h2 id="allow-title"><span id="allow-who">A phone</span> wants to throw pages to this screen</h2>
+      <p>It typed this screen's code. Allow it only if it is yours or someone you know.</p>
+      <div class="allow-row"><button id="allow-yes" class="btn-primary" type="button">Allow</button><button id="allow-no" class="chip" type="button">Don't allow</button></div>
+    </div>
   </div>
 
   <script type="module" src="/catch/catch.js"></script>

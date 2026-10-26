@@ -1,7 +1,7 @@
 // Throw to another screen: the messages between the phone and the screen, checked the way
 // the screen checks them (anyone with the code can send, so nothing is trusted).
 import assert from "node:assert/strict";
-import { cleanMsg, videoEmbed, deviceName, httpUrl } from "../public/cast.js";
+import { cleanMsg, videoEmbed, deviceName, httpUrl, newKey } from "../public/cast.js";
 
 let n = 0;
 const ok = (name, fn) => { fn(); n++; console.log("ok  ", name); };
@@ -30,9 +30,9 @@ ok("remote-control messages carry nothing extra", () => {
   assert.equal(cleanMsg({ t: "page", url: "javascript:1" }), null);
 });
 ok("YouTube and Vimeo pages play in the real player on the screen", () => {
-  const yt = "https://www.youtube.com/embed/aqz-KE-bpKQ?autoplay=1&playsinline=1";
+  const yt = "https://www.youtube.com/embed/aqz-KE-bpKQ?autoplay=1&mute=1&playsinline=1&enablejsapi=1";
   for (const u of ["https://www.youtube.com/watch?v=aqz-KE-bpKQ", "https://m.youtube.com/watch?v=aqz-KE-bpKQ&t=10", "https://youtu.be/aqz-KE-bpKQ", "https://www.youtube.com/embed/aqz-KE-bpKQ", "https://www.youtube.com/shorts/aqz-KE-bpKQ"]) assert.equal(videoEmbed(u), yt, u);
-  assert.equal(videoEmbed("https://vimeo.com/76979871"), "https://player.vimeo.com/video/76979871?autoplay=1");
+  assert.equal(videoEmbed("https://vimeo.com/76979871"), "https://player.vimeo.com/video/76979871?autoplay=1&muted=1");
   for (const u of ["https://en.m.wikipedia.org/wiki/Cat", "https://www.youtube.com/", "https://www.youtube.com/watch?v=<script>", "https://notyoutube.com/watch?v=aqz-KE-bpKQ", "not a url"]) assert.equal(videoEmbed(u), "", u);
 });
 ok("devices get a short name", () => {
@@ -43,6 +43,15 @@ ok("devices get a short name", () => {
   assert.equal(deviceName("Mozilla/5.0 (Linux; Android 9; AFTMM) Silk"), "TV");
   assert.equal(deviceName("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"), "Mac");
   assert.equal(deviceName(""), "Computer");
+});
+ok("the QR code's secret is long and random; a hello only carries a plain key", () => {
+  const a = newKey(), b = newKey();
+  assert.match(a, /^[A-Za-z0-9]{20}$/); assert.notEqual(a, b);
+  assert.equal(cleanMsg({ t: "hello", from: "iPhone", k: a }).k, a);
+  assert.equal(cleanMsg({ t: "hello", k: "<script>" }).k, "");
+  assert.equal(cleanMsg({ t: "hello", k: { toString: () => "x" } }).k, "");
+  assert.equal(cleanMsg({ t: "screen", name: "TV" }).allowed, true);
+  assert.equal(cleanMsg({ t: "screen", name: "TV", allowed: false }).allowed, false);
 });
 ok("httpUrl normalises good addresses and refuses others", () => {
   assert.equal(httpUrl("https://example.com"), "https://example.com/");
