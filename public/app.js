@@ -886,7 +886,7 @@ function wireFling(el, getG) {
 function openCast() {
   caster();
   // a phone scans the screen's QR code; a laptop types the code
-  $("cast-step2").textContent = isLaptop() ? "Type the code it shows:" : "Scan the QR code it shows with this phone's camera, or type its code here:";
+  $("cast-step2").textContent = isLaptop() ? "Type the code it shows:" : "Scan the QR code it shows with this " + (/phone/i.test(ME) ? "phone" : "device") + "'s camera, or type its code here:";
   renderCast();
   castErr.hidden = true;
   if (!cast.connected && !castCode.value) castCode.value = cast.lastCode();
