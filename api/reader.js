@@ -7,7 +7,7 @@
 let parseHTML = null;
 const loadDom = async () => (parseHTML ||= (await import("linkedom")).parseHTML);
 const { Readability } = require("@mozilla/readability");
-const { send, assertPublicUrl } = require("./_lib");
+const { send, assertPublicUrl, safeFetch, readCapped, refuseElsewhere } = require("./_lib");
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36";
@@ -18,7 +18,7 @@ async function fetchPage(url) {
   let current = url;
   for (let hop = 0; hop < 5; hop++) {
     await assertPublicUrl(current);
-    const r = await fetch(current, {
+    const r = await safeFetch(current, {
       redirect: "manual",
       headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" },
       signal: AbortSignal.timeout(10000),
@@ -28,8 +28,7 @@ async function fetchPage(url) {
     if (!r.ok) { await r.body?.cancel(); throw new Error(`The site answered ${r.status}`); }
     const type = r.headers.get("content-type") || "";
     if (!/html|xml/i.test(type)) { await r.body?.cancel(); const e = new Error("Not a web page"); e.contentType = type; e.finalUrl = current; throw e; }
-    const buf = await r.arrayBuffer();
-    if (buf.byteLength > MAX_BYTES) throw new Error("Page too large");
+    const buf = await readCapped(r, MAX_BYTES, "Page too large");
     return { html: new TextDecoder("utf-8").decode(buf), finalUrl: current };
   }
   throw new Error("Too many redirects");
@@ -135,6 +134,7 @@ async function read(url) {
 }
 
 module.exports = async (req, res) => {
+  if (refuseElsewhere(req, res)) return;
   const target = new URL(req.url, "http://local").searchParams.get("url");
   if (!target) return send(res, 400, { error: "Missing url" });
   try {

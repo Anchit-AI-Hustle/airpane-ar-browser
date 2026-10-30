@@ -1,7 +1,7 @@
 // GET /api/check?url=...  ->  { frameable, reason, finalUrl }
 // Reads the site's own framing rules (X-Frame-Options / CSP frame-ancestors).
 // It never proxies or strips them: blocked sites go to Cloud mode instead.
-const { send, assertPublicUrl } = require("./_lib");
+const { send, assertPublicUrl, safeFetch, refuseElsewhere } = require("./_lib");
 
 const UA =
   "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36";
@@ -24,6 +24,7 @@ function analyse(headers) {
 }
 
 module.exports = async (req, res) => {
+  if (refuseElsewhere(req, res)) return;
   const target = new URL(req.url, "http://local").searchParams.get("url");
   if (!target) return send(res, 400, { error: "Missing url" });
 
@@ -31,7 +32,7 @@ module.exports = async (req, res) => {
   try {
     for (let hop = 0; hop < 5; hop++) {
       await assertPublicUrl(current);
-      const r = await fetch(current, {
+      const r = await safeFetch(current, {
         method: "GET",
         redirect: "manual",
         headers: { "user-agent": UA, accept: "text/html,*/*" },

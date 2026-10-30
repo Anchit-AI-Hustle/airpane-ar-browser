@@ -5,7 +5,7 @@
 // original site through a <base> tag.
 let parseHTML = null;
 const loadDom = async () => (parseHTML ||= (await import("linkedom")).parseHTML);
-const { assertPublicUrl } = require("./_lib");
+const { assertPublicUrl, refuseElsewhere } = require("./_lib");
 const { fetchPage } = require("./reader");
 
 // Pages written for JavaScript often start hidden and fade in from a script. Without
@@ -34,6 +34,11 @@ function forWidth(url, w) {
 
 async function buildPage(url, w) {
   const { html, finalUrl } = await fetchPage(forWidth(url, w));
+  return { ...(await cleanPage(html, finalUrl)), finalUrl };
+}
+
+// Someone else's HTML, made safe to show: nothing in it can run.
+async function cleanPage(html, finalUrl) {
   await loadDom();
   const { document } = parseHTML(html);
   const head = document.head || document.documentElement;
@@ -45,18 +50,21 @@ async function buildPage(url, w) {
     ns.insertAdjacentHTML("beforebegin", div.innerHTML);
     ns.remove();
   }
-  // Nothing from the page may run.
-  for (const n of document.querySelectorAll("script, iframe, object, embed, frame, frameset, portal")) n.remove();
+  // Nothing from the page may run. (<template> can hold a shadow root the browser builds from
+  // markup, which the cleaning below can't see inside; SVG <animate>/<set> can rewrite links.)
+  for (const n of document.querySelectorAll("script, iframe, object, embed, frame, frameset, portal, template, animate, set, animatetransform, animatemotion")) n.remove();
   for (const n of document.querySelectorAll("meta[http-equiv]")) {
     if (/refresh|content-security-policy|set-cookie/i.test(n.getAttribute("http-equiv"))) n.remove();
   }
   for (const n of document.querySelectorAll("base, link[rel=preload][as=script], link[rel=modulepreload]")) n.remove();
   for (const el of document.querySelectorAll("*")) {
     for (const a of [...el.attributes]) if (/^on/i.test(a.name)) el.removeAttribute(a.name);
-    for (const attr of ["href", "src", "action", "formaction", "xlink:href"]) {
+    for (const attr of ["href", "src", "action", "formaction", "xlink:href", "data", "poster", "background"]) {
       const v = el.getAttribute(attr);
-      if (v && /^\s*javascript:/i.test(v)) el.removeAttribute(attr);
+      // browsers ignore tabs, newlines and control characters inside a URL scheme ("java\tscript:")
+      if (v && /^(javascript|vbscript|data:text\/html)/i.test(v.replace(/[\u0000-\u0020\u007f-\u00a0]/g, ""))) el.removeAttribute(attr);
     }
+    el.removeAttribute("shadowrootmode"); el.removeAttribute("srcdoc");
   }
   // Lazy images that wait for a script: use their real source.
   for (const img of document.querySelectorAll("img")) {
@@ -73,10 +81,11 @@ async function buildPage(url, w) {
   // Belt and braces: the frame forbids scripts anyway, but strip any that survived parsing.
   out = out.replace(/<script\b[\s\S]*?<\/script\s*>/gi, "").replace(/<script\b[^>]*>/gi, "");
   if (!/^<!doctype/i.test(out)) out = "<!DOCTYPE html>" + out;
-  return { html: out, finalUrl, title };
+  return { html: out, title };
 }
 
 module.exports = async (req, res) => {
+  if (refuseElsewhere(req, res)) return;
   const params = new URL(req.url, "http://local").searchParams;
   const target = params.get("url"), width = parseInt(params.get("w"), 10) || 0;
   res.setHeader("Cache-Control", "no-store");
@@ -86,6 +95,10 @@ module.exports = async (req, res) => {
     const { html, finalUrl, title } = await buildPage(target, width);
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    // The app reads this with fetch() and shows it in its own sandboxed frame. Opened any other
+    // way it is someone else's page: no scripts, forms, plugins or framing on Airpane's address.
+    res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'; img-src * data:; style-src * 'unsafe-inline'; font-src * data:");
+    res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("X-Final-Url", encodeURIComponent(finalUrl));
     res.setHeader("X-Page-Title", encodeURIComponent(title));
     return res.end(html);
@@ -103,3 +116,4 @@ module.exports = async (req, res) => {
   }
 };
 module.exports.buildPage = buildPage;
+module.exports.cleanPage = cleanPage;

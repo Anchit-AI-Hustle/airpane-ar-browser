@@ -3,16 +3,21 @@
 // two devices find each other; the page data then flows device to device.
 
 const PEERJS = "https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js";
+// The browser runs it only if it is exactly this file (a changed CDN copy is refused).
+const PEERJS_SRI = "sha384-x0YgkOr/3UOZP2CRDxGW9e0Q+2Qjyr3uJrm4xU32Y7ZCNAo7Cc7bjhrZMi/dwczu";
 const ALPHA = "ABCDEFGHJKMNPQRSTUVWXYZ"; // no I, L, O: easy to read and type
 // kind "glass": a floating display waiting for a controller; "screen": a screen (TV, laptop,
 // tablet) waiting for pages thrown at it.
 export const peerId = (code, kind = "glass") => "airpane-" + kind + "-" + code.toUpperCase();
-export const newCode = () => Array.from({ length: 4 }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join("");
+export const newCode = () => Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => ALPHA[n % ALPHA.length]).join("");
 export const cleanCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
 
-// Tests (and self-hosting) can point at another PeerJS server with ?peer=host:port
+// Tests (and self-hosting) can point at another PeerJS server with ?peer=host:port. Only when
+// the app itself runs on this computer: on the real site a shared link can't send your device
+// to a stranger's pairing server.
 function peerOpts() {
-  const v = new URLSearchParams(location.search).get("peer");
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  const v = local ? new URLSearchParams(location.search).get("peer") : null;
   if (!v) return { debug: 0 };
   const [host, port] = v.split(":");
   return { debug: 0, host, port: +port || 443, path: "/", secure: (+port || 443) === 443 };
@@ -23,7 +28,7 @@ function loadPeer() {
   if (window.Peer) return Promise.resolve(window.Peer);
   loading = loading || new Promise((ok, bad) => {
     const s = document.createElement("script");
-    s.src = PEERJS; s.async = true;
+    s.src = PEERJS; s.async = true; s.integrity = PEERJS_SRI; s.crossOrigin = "anonymous";
     s.onload = () => ok(window.Peer);
     s.onerror = () => bad(new Error("Could not load the pairing library"));
     document.head.appendChild(s);

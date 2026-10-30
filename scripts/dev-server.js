@@ -17,4 +17,4 @@ http.createServer(async (req, res) => {
   if (!file.startsWith(path.join(root, "public")) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.statusCode = 404; return res.end("Not found"); }
   res.setHeader("Content-Type", types[path.extname(file)] || "application/octet-stream");
   fs.createReadStream(file).pipe(res);
-}).listen(port, () => console.log("dev server on http://localhost:" + port));
+}).listen(port, process.env.HOST || "127.0.0.1", () => console.log("dev server on http://localhost:" + port)); // this computer only (HOST=0.0.0.0 to test from a phone)

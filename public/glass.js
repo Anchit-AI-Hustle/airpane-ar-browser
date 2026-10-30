@@ -75,7 +75,8 @@ export async function pdfPage(url, width) {
   const data = new Uint8Array(await r.arrayBuffer());
   const lib = await import(PDFJS + "/pdf.min.mjs");
   lib.GlobalWorkerOptions.workerSrc = PDFJS + "/pdf.worker.min.mjs";
-  const pdf = await lib.getDocument({ data }).promise;
+  // someone else's file: pdf.js must not compile anything from it
+  const pdf = await lib.getDocument({ data, isEvalSupported: false }).promise;
   const px = Math.min(1600, Math.max(600, Math.round((width || 800) * Math.min(2, devicePixelRatio || 1))));
   const imgs = [];
   for (let i = 1; i <= Math.min(pdf.numPages, 40); i++) {

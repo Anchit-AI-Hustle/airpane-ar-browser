@@ -4,3 +4,7 @@ tests/shots/
 __pycache__/
 *.pyc
 desktop/tests/ui-*.png
+.env
+.env.*
+.DS_Store
+*.log

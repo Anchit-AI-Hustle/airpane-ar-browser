@@ -1,5 +1,8 @@
 name: CI
 on: [push, pull_request]
+# The workflow only reads the code: the token it gets can't push or change the repo.
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -16,3 +19,6 @@ jobs:
         with: { python-version: "3.11" }
       - run: python desktop/tests/test_engine.py
       - run: bash -n desktop/install.sh
+      # The website serves a copy of the desktop app for its installer: it must match desktop/
+      # (a dependency bump in desktop/requirements.txt needs `bash scripts/build-desktop.sh`).
+      - run: bash scripts/build-desktop.sh && git diff --exit-code -- public/desktop desktop/install.sh
