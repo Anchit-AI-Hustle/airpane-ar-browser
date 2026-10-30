@@ -1,7 +1,7 @@
 // GET  /api/session           -> { enabled }  (is Cloud mode configured?)
 // POST /api/session {url,w,h} -> { embed_url, admin_token, session_id }
 // Starts a short-lived cloud Chromium (Hyperbeam) for sites that block framing.
-const { send, readJson, assertPublicUrl, isBlockedForCloud } = require("./_lib");
+const { send, readJson, assertPublicUrl, isBlockedForCloud, refuseElsewhere } = require("./_lib");
 
 const ENGINE = "https://engine.hyperbeam.com/v0/vm";
 const clamp = (n, lo, hi, d) => (Number.isFinite(+n) ? Math.min(hi, Math.max(lo, Math.round(+n))) : d);
@@ -10,6 +10,8 @@ module.exports = async (req, res) => {
   const key = process.env.HYPERBEAM_API_KEY;
   if (req.method === "GET") return send(res, 200, { enabled: Boolean(key) });
   if (req.method !== "POST") return send(res, 405, { error: "Method not allowed" });
+  // Each session is a paid cloud browser: only Airpane's own page may start one.
+  if (refuseElsewhere(req, res)) return;
   if (!key) return send(res, 503, { error: "Cloud mode is not configured" });
 
   let body;

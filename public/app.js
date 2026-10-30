@@ -266,7 +266,9 @@ function showDirect(url) {
   setMode("direct");
   if (!iframe) {
     iframe = document.createElement("iframe");
-    iframe.setAttribute("allow", "autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write");
+    iframe.setAttribute("allow", "autoplay; fullscreen; encrypted-media; picture-in-picture");
+    // The site works as usual (scripts, forms, its own pop-ups) but can't take over Airpane's tab.
+    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation");
     iframe.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
     iframe.title = "Page";
   }
@@ -314,6 +316,7 @@ function showBlocked(url, reason) {
   frameHost.replaceChildren();
   let host = url;
   try { host = new URL(url).host; } catch {}
+  host = String(host).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const links = QUICK.map(([n, u]) => `<button class="chip" data-url="${u}">${n}</button>`).join("");
   showState(`<div>
     <h2>${host} can't open here yet</h2>

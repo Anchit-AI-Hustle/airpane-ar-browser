@@ -146,6 +146,68 @@ async function t(name, fn) { try { await fn(); pass++; console.log("ok  ", name)
     assert.equal((await callRaw(file, "/api/file?url=" + encodeURIComponent("https://example.com/"))).status, 415);
     assert.equal((await callRaw(file, "/api/file?url=" + encodeURIComponent("http://127.0.0.1/x.pdf"))).status, 422);
   });
+  // ---------- public-exposure hardening ----------
+  const lib = require("../api/_lib");
+  await t("SSRF: private addresses written in any IPv6 form are refused", () => {
+    for (const ip of ["::ffff:7f00:1", "::ffff:a9fe:a9fe", "::7f00:1", "::127.0.0.1", "64:ff9b::7f00:1", "2002:7f00:1::", "fec0::1", "fe80::1%eth0", "ff02::1", "2001::1", "198.18.0.1", "192.0.0.8", "100::1", "not-an-ip"]) assert.equal(lib.isPrivateIp(ip), true, ip);
+    for (const ip of ["2a00:1450:4009:81f::200e", "64:ff9b::808:808", "::ffff:8.8.8.8"]) assert.equal(lib.isPrivateIp(ip), false, ip);
+  });
+  await t("SSRF: a name that resolves to this machine is refused when connecting (DNS rebinding)", async () => {
+    const srv = require("node:http").createServer((q, r) => r.end("INTERNAL-SECRET")).listen(0, "127.0.0.1");
+    await new Promise((ok) => srv.once("listening", ok));
+    try { await assert.rejects(lib.safeFetch(`http://localhost:${srv.address().port}/`), /Host not allowed/); }
+    finally { srv.close(); }
+  });
+  await t("size limit: a huge body is cut off as soon as it passes the limit, not after downloading it", async () => {
+    let pulled = 0;
+    const body = new ReadableStream({ pull(c) { pulled += 65536; c.enqueue(new Uint8Array(65536)); } });
+    await assert.rejects(lib.readCapped(new Response(body), 1_000_000, "Page too large"), /Page too large/);
+    assert.ok(pulled < 1_500_000, "read " + pulled + " bytes");
+    await assert.rejects(lib.readCapped(new Response("x", { headers: { "content-length": "9999999" } }), 1000, "big"), /big/);
+  });
+  const { cleanPage } = page;
+  await t("page cleaner: the audit's script tricks are all removed", async () => {
+    const evil = `<html><head><title>t</title></head><body>
+      <div><template shadowrootmode="open"><img src=x onerror="alert(1)"></template></div>
+      <a href="java&#9;script:alert(2)">a</a><a href="&#1;javascript:alert(3)">b</a><a href=" JAVASCRIPT:alert(4)">c</a>
+      <form action="javascript:alert(5)"><button formaction="vbscript:x">go</button></form>
+      <svg><a><animate attributeName="href" to="javascript:alert(6)"/><set attributeName="href" to="javascript:alert(7)"/><text>x</text></a></svg>
+      <iframe srcdoc="<script>alert(8)</script>"></iframe><object data="data:text/html,<script>alert(9)</script>"></object>
+      <a href="https://ok.example/">fine</a></body></html>`;
+    const { html } = await cleanPage(evil, "https://attacker.example/");
+    assert.doesNotMatch(html, /template|shadowroot|<animate|<set\b|srcdoc|<object|<iframe|onerror/i, html);
+    assert.doesNotMatch(html.replace(/[\u0000-\u0020]/g, ""), /(java|vb)script:/i, html);
+    assert.match(html, /href="https:\/\/ok\.example\/"/);
+  });
+  const callH = (handler, url, headers, method = "GET") => new Promise((resolve) => {
+    const req = Readable.from([]); Object.assign(req, { method, url, headers });
+    const res = { headers: {}, statusCode: 200, setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, end(s) { resolve({ status: this.statusCode, text: String(s), headers: this.headers }); } };
+    handler(req, res);
+  });
+  await t("API: refused when opened directly or called by another site; allowed from Airpane's own pages", async () => {
+    const reader = require("../api/reader");
+    const u = "?url=" + encodeURIComponent("https://example.com/");
+    for (const [h, path] of [[page, "/api/page"], [reader, "/api/reader"], [file, "/api/file"], [check, "/api/check"]]) {
+      assert.equal((await callH(h, path + u, { "sec-fetch-mode": "navigate", "sec-fetch-site": "cross-site" })).status, 403, path + " opened from a link");
+      assert.equal((await callH(h, path + u, { "sec-fetch-mode": "cors", "sec-fetch-site": "cross-site" })).status, 403, path + " called by another site");
+      assert.equal((await callH(h, path, { "sec-fetch-mode": "cors", "sec-fetch-site": "same-origin" })).status, 400, path + " from Airpane itself");
+    }
+    process.env.HYPERBEAM_API_KEY = "test";
+    assert.equal((await callH(session, "/api/session", { "sec-fetch-mode": "cors", "sec-fetch-site": "cross-site" }, "POST")).status, 403, "another site can't start paid cloud sessions");
+  });
+  await t("page: served with a sandbox policy, so opened directly nothing in it can run or be framed", async () => {
+    const r = await callRaw(page, "/api/page?url=" + encodeURIComponent("https://example.com/"));
+    assert.equal(r.status, 200, r.text.slice(0, 200));
+    assert.match(r.headers["content-security-policy"], /^sandbox;/);
+    assert.match(r.headers["content-security-policy"], /default-src 'none'/);
+    assert.equal(r.headers["x-frame-options"], "DENY");
+  });
+  await t("file: a PDF downloads rather than showing on Airpane's address", async () => {
+    const r = await callRaw(file, "/api/file?url=" + encodeURIComponent("https://anchit-tandon.com/assets/resume.pdf"));
+    assert.equal(r.headers["content-disposition"], "attachment");
+    assert.match(r.headers["content-security-policy"], /^sandbox/);
+  });
+
   delete process.env.HYPERBEAM_API_KEY;
   console.log(`\n${pass} API tests passed${process.exitCode ? " (with failures)" : ""}`);
 })();

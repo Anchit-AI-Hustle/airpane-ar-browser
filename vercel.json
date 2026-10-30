@@ -1,5 +1,8 @@
 {
   "outputDirectory": "public",
+  "functions": {
+    "api/*.js": { "maxDuration": 15 }
+  },
   "headers": [
     {
       "source": "/(.*)",
@@ -15,6 +18,23 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    },
+    {
+      "source": "/((?!api/).*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self'; object-src 'none'"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
         }
       ]
     }
