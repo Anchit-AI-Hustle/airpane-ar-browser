@@ -20,6 +20,6 @@
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "linkedom": "^0.18.15",
-    "undici": "8.12.4"
+    "undici": "8.13.1"
   }
 }
